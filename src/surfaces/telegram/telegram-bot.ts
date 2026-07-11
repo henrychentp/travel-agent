@@ -319,6 +319,11 @@ export async function processTelegramUpdate(update: Record<string, unknown>) {
     return;
   }
 
+  if (/^(hi|hello|hey|start)\b/i.test(text.trim())) {
+    await handleStart(chatId, from.first_name, userId);
+    return;
+  }
+
   if (text.trim().toLowerCase() === "/onboarding") {
     await sendMessage(chatId, "Open the Mini App, complete your taste cards and trip details, then return here and send */demo*.", { reply_markup: webAppKeyboard() });
     return;
