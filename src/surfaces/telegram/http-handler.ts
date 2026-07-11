@@ -162,15 +162,21 @@ export async function handleHttpRequest(
 
   try {
     if (req.method === "GET" && url.pathname === "/api/health") {
+      const base = getWebAppUrl();
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(
         JSON.stringify({
           ok: true,
-          webAppUrl: getWebAppUrl(),
+          webAppUrl: base,
           googleConfigured: isGoogleConfigured(),
           mem0Configured: isMem0Configured(),
           allowUnsafeUser: getTelegramAllowUnsafeUser(),
           vercel: process.env.VERCEL === "1",
+          teammate: {
+            userIdFormat: "tg:<telegram_numeric_id>",
+            profileUrl: `${base}/api/mem0/profile?userId=tg:<telegram_id>`,
+            example: `${base}/api/mem0/profile?userId=tg:123456789`,
+          },
         }),
       );
       return;

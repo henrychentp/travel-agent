@@ -23,6 +23,37 @@ Set `LINKUP_API_KEY` and `MEM0_API_KEY` in that local file. The committed
 When the key is set, onboarding, swipe, Google import, planner, and concierge
 all read/write durable taste via `createMem0Client()` — no code changes needed.
 
+### Teammate agent — pull saved taste from Telegram
+
+After a traveller finishes the mini app (`/start` → **Build taste profile**),
+their data is in Mem0 under:
+
+```
+userId = tg:<telegram_numeric_id>
+```
+
+**HTTP (quickest check):**
+```
+GET https://hermes-travel-agent.vercel.app/api/mem0/profile?userId=tg:123456789
+```
+
+Returns `{ ok: true, userId, profile }` with `destinationCity`, `food`, `pace`,
+`activities`, `location`, `notes`, `evidence`, etc.
+
+**In code (same repo):**
+```ts
+import { createMem0Client } from "./dist/src/shared/mem0-client.js";
+const profile = await createMem0Client().getProfile("tg:123456789");
+```
+
+Requirements for the teammate's runtime:
+- Same `MEM0_API_KEY` as Vercel (shared team secret)
+- Correct `userId` format (`tg:` prefix + numeric Telegram id)
+
+Optional: set `TEAMMATE_API_SECRET` on Vercel and pass `?secret=...` on profile reads.
+
+Verify deployment: `GET /api/health` → `mem0Configured: true`.
+
 Set `HERMES_LIVE_CULTURE=true` alongside an `OPENAI_API_KEY` to use the
 OpenAI-backed Culture Concierge. It uses the existing shared OpenAI client and
 is deliberately opt-in, so deterministic tests never call a model API.
