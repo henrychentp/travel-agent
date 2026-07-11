@@ -191,6 +191,13 @@ function formatItinerary(plan: TripPlan): string {
   return `*Your demo itinerary — fictional and unbooked*\n${plan.request.destination} · ${plan.request.startDate} to ${plan.request.endDate}\n\n${schedule.join("\n\n")}\n\nProtected flight, hotel, and dinner anchors are preserved. No booking has been made.`;
 }
 
+function fallbackItinerary(request: TripRequest): string {
+  const endDate = request.endDate >= request.startDate
+    ? request.endDate
+    : request.startDate;
+  return `*Your demo itinerary — fictional and unbooked*\n${request.destination} · ${request.startDate} to ${endDate}\n\n*${request.startDate} — arrive gently*\n• Check in, settle in, and explore one nearby neighbourhood at an easy pace.\n• Keep dinner flexible near your hotel.\n\n*${endDate} — cultural anchor*\n• Choose one museum, landmark, or food experience that suits your taste profile.\n• Leave time for a coffee stop and a relaxed return.\n\nThis is a demo outline. No booking has been made.`;
+}
+
 async function oneMinuteBriefing(plan: TripPlan, profile: TravellerProfile): Promise<string> {
   const fallback = `Welcome to your ${plan.request.destination} itinerary. Your plan keeps your confirmed travel and dinner plans protected, with a measured pace around the experiences that suit you best. Each day leaves room for practical transfers and a proper pause, so the trip feels effortless rather than over-scheduled. Check the attached PDF for the full plan, and make any booking decisions only when you are ready.`;
   try {
@@ -218,8 +225,14 @@ export async function runOnboardingDemo(chatId: number, userId: string): Promise
     return;
   }
   await sendMessage(chatId, "Your taste profile is saved. I’m researching and building your personalised demo itinerary now…");
-  const plan = await hermes.plan(userId, demoRequest(profile!));
-  const itinerary = formatItinerary(plan);
+  const request = demoRequest(profile!);
+  let itinerary: string;
+  try {
+    itinerary = formatItinerary(await hermes.plan(userId, request));
+  } catch (error) {
+    console.error("Hermes demo planning failed; sending fallback itinerary", error);
+    itinerary = fallbackItinerary(request);
+  }
   await sendMessage(chatId, itinerary);
 }
 
@@ -286,14 +299,20 @@ async function handleConcierge(chatId: number, userId: string, text: string) {
 
   const moment = await extractMomentContext(text, profile!);
   const date = moment.startAt.slice(0, 10);
-  const plan = await hermes.plan(userId, {
+  const request: TripRequest = {
     destination: moment.location,
     startDate: date,
     endDate: date,
     travellers: 1,
     dayWindow: { startAt: moment.startAt, endAt: moment.endAt },
-  });
-  const itinerary = formatItinerary(plan);
+  };
+  let itinerary: string;
+  try {
+    itinerary = formatItinerary(await hermes.plan(userId, request));
+  } catch (error) {
+    console.error("Hermes concierge planning failed; sending fallback itinerary", error);
+    itinerary = fallbackItinerary(request);
+  }
   await sendMessage(chatId, itinerary);
 }
 
