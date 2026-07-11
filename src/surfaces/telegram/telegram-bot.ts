@@ -214,15 +214,6 @@ export async function runOnboardingDemo(chatId: number, userId: string): Promise
   await sendMessage(chatId, "Your taste profile is saved. I’m researching and building your personalised demo itinerary now…");
   const plan = await hermes.plan(userId, demoRequest(profile!));
   const itinerary = formatItinerary(plan);
-  const narration = await oneMinuteBriefing(plan, profile!);
-  try {
-    await sendFinalAssets(chatId, itinerary, narration);
-  } catch (error) {
-    console.error("Hermes demo asset delivery failed", error);
-    await sendMessage(chatId, itinerary);
-    await sendMessage(chatId, `Your itinerary is ready. ${deliveryFailureMessage(error)} I’ll keep the plan available in chat while that delivery is fixed.`);
-    return;
-  }
   await sendMessage(chatId, itinerary);
 }
 
@@ -297,15 +288,6 @@ async function handleConcierge(chatId: number, userId: string, text: string) {
     dayWindow: { startAt: moment.startAt, endAt: moment.endAt },
   });
   const itinerary = formatItinerary(plan);
-  const narration = await oneMinuteBriefing(plan, profile!);
-  try {
-    await sendFinalAssets(chatId, itinerary, narration);
-  } catch (error) {
-    console.error("Hermes concierge asset delivery failed", error);
-    await sendMessage(chatId, itinerary);
-    await sendMessage(chatId, `Your recommendation is ready. ${deliveryFailureMessage(error)} I’ll keep the plan available in chat while that delivery is fixed.`);
-    return;
-  }
   await sendMessage(chatId, itinerary);
 }
 
