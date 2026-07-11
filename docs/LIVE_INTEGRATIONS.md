@@ -7,6 +7,10 @@ memory live:
 Set `LINKUP_API_KEY` and `MEM0_API_KEY` in that local file. The committed
 [`.env.example`](../.env.example) lists the variable names with blank values.
 
+Set `HERMES_LIVE_CULTURE=true` alongside an `OPENAI_API_KEY` to use the
+OpenAI-backed Culture Concierge. It uses the existing shared OpenAI client and
+is deliberately opt-in, so deterministic tests never call a model API.
+
 `LinkupScout` calls Linkup Search with bearer authentication and turns returned
 results into date-spread itinerary activities. Each candidate retains its
 `sourceUrl`, so the Board can display the source that grounded it.

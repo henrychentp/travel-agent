@@ -31,7 +31,9 @@ export async function chat(
     body: JSON.stringify({
       model,
       messages,
-      temperature: options.temperature ?? 0.4,
+      // Some current reasoning models only support their default temperature.
+      // Omit it unless a caller explicitly needs a supported override.
+      ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
     }),
   });
 
