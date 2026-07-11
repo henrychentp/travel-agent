@@ -12,6 +12,7 @@ import {
 import { telegramUserId } from "./init-data.js";
 import { Hermes } from "../../orchestrator/index.js";
 import type { TripPlan, TripRequest, TravellerProfile } from "../../shared/schemas.js";
+import { extractMomentContext } from "../../skills/concierge/moment-context.js";
 
 const mem0 = createMem0Client();
 const hermes = new Hermes({ mem0 });
@@ -239,21 +240,19 @@ async function handleConcierge(chatId: number, userId: string, text: string) {
     return;
   }
 
-  const reply = await chat([
-    {
-      role: "system",
-      content:
-        `You are Hermes, a premium day-travel concierge. The traveller's durable taste profile is loaded from Mem0 — use it for every suggestion. ` +
-        `Suggest 2-3 specific things for their free hours. Be concrete (neighbourhoods, food, vibe). Keep it Telegram-friendly.`,
-    },
-    {
-      role: "user",
-      content: `Request: "${text}"\nMem0 profile: ${profilePromptContext(profile!)}`,
-    },
-  ]);
-
-  await sendMessage(chatId, reply);
-  await sendFinalAssets(chatId, reply, reply);
+  const moment = await extractMomentContext(text, profile!);
+  const date = moment.startAt.slice(0, 10);
+  const plan = await hermes.plan(userId, {
+    destination: moment.location,
+    startDate: date,
+    endDate: date,
+    travellers: 1,
+    dayWindow: { startAt: moment.startAt, endAt: moment.endAt },
+  });
+  const itinerary = formatItinerary(plan);
+  const narration = await oneMinuteBriefing(plan, profile!);
+  await sendMessage(chatId, itinerary);
+  await sendFinalAssets(chatId, itinerary, narration);
 }
 
 async function handleWebAppData(chatId: number, userId: string, data: string) {

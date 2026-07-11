@@ -130,6 +130,8 @@ real-user/account actions.
       briefing. Code path is implemented; live proof requires matching Vercel
       Telegram/Mem0/ElevenLabs environment variables and deployment.
 - [x] A non-engineer can approve or reject a patch from Telegram.
+- [x] Director supports spontaneous same-day plans: LLM extracts city/date/time,
+      schedules the next 6–8 hours with buffers, and never plans past 22:00 local.
 - [ ] A non-engineer can pause/retry a run.
 - [x] A non-engineer can inspect recent Director traces and roll back the latest trip from Telegram.
 - [x] A non-engineer can change an enforced approval rule from Telegram.

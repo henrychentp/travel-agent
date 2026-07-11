@@ -15,6 +15,9 @@ export interface RevisionContext {
   /** Planning window; candidates outside it can never be scheduled. */
   tripStart?: string;
   tripEnd?: string;
+  /** Local same-day window for spontaneous plans (for example, now → 22:00). */
+  windowStart?: string;
+  windowEnd?: string;
 }
 
 export interface RevisionResult {
@@ -55,8 +58,10 @@ export function runRevisionLoop(
   const locations = new Map<string, Set<string>>();
   const kept: PatchOp[] = [];
   const dropped: { op: PatchOp; reason: string }[] = [];
+  let nextAvailableAt = ctx.windowStart;
 
-  for (const op of ops) {
+  for (const originalOp of ops) {
+    let op = originalOp;
     if (op.op !== "add") {
       kept.push(op);
       continue;
@@ -69,13 +74,27 @@ export function runRevisionLoop(
       kept.push(op);
       continue;
     }
-    const titleKey = `${op.date}:${op.after.title.trim().toLowerCase()}`;
+    let activity = op.after;
+    if (ctx.windowStart && ctx.windowEnd) {
+      const durationMins = activity.durationMins ?? 90;
+      const startAt = nextAvailableAt ?? ctx.windowStart;
+      const endAt = addMinutes(startAt, durationMins);
+      if (endAt > ctx.windowEnd) {
+        dropped.push({ op, reason: "would run past the local 22:00 cutoff" });
+        continue;
+      }
+      activity = { ...activity, startAt, endAt };
+      op = { ...op, after: activity };
+      // Preserve a practical transition buffer before the next option.
+      nextAvailableAt = addMinutes(endAt, 30);
+    }
+    const titleKey = `${op.date}:${activity.title.trim().toLowerCase()}`;
     if (titles.has(titleKey)) {
       dropped.push({ op, reason: "duplicate activity candidate" });
       continue;
     }
     const dayLocations = locations.get(op.date) ?? new Set<string>();
-    const location = op.after.location?.trim().toLowerCase();
+    const location = activity.location?.trim().toLowerCase();
     if (
       profile.pace.walkingTolerance === "low" &&
       location &&
@@ -98,4 +117,10 @@ export function runRevisionLoop(
   }
 
   return { ops: kept, dropped, issues: [] };
+}
+
+function addMinutes(localIso: string, minutes: number): string {
+  const date = new Date(localIso);
+  date.setMinutes(date.getMinutes() + minutes);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}:00`;
 }

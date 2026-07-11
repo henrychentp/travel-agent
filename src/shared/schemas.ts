@@ -420,6 +420,8 @@ export interface TripRequest {
   mustHaves?: string[];
   /** Reviewed facts that the Director must preserve while planning. */
   confirmedBookings?: Booking[];
+  /** Local, in-the-moment planning window; the Director never schedules past it. */
+  dayWindow?: { startAt: ISODate; endAt: ISODate };
 }
 
 export interface FlightBooking {

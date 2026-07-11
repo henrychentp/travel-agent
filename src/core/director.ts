@@ -185,6 +185,8 @@ export class Director {
         now,
         tripStart: request.startDate,
         tripEnd: request.endDate,
+        windowStart: request.dayWindow?.startAt,
+        windowEnd: request.dayWindow?.endAt,
       });
       ops = revised.ops;
     }
