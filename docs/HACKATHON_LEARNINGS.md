@@ -170,6 +170,37 @@ Stage explicit files only. Use separate worktrees or branches for each person.
   the user asks to inspect them.
 - Deploy is not complete until the actual public URL is verified.
 
+## Strategic lesson: minimise runtime integration during a hackathon
+
+Vercel, Telegram, and Hermes each added meaningful setup and debugging time.
+Do not make all three dependencies part of the critical path unless their
+integration is itself a judging criterion.
+
+### Better build order
+
+```text
+Director + deterministic fixtures
+  → live Linkup research
+  → polished web or local demo
+  → optional Telegram presentation layer
+  → optional Vercel deployment
+```
+
+- Start with one runtime and one surface: a simple web app or local CLI calling
+  the Director directly is the best default.
+- Treat Hermes as the orchestration runtime, not a second UI/backend to wire
+  during the build.
+- Add Telegram only after the core customer flow works; keep it a thin
+  presentation layer.
+- Deploy to Vercel only after the tested flow is complete, ideally near the end
+  of the event.
+- Use fixtures or stubs first, then add live providers one at a time after the
+  end-to-end journey passes.
+
+This would have removed most of the integration/debugging time while retaining
+the core agency story: personalised context, live research, feasibility, and a
+safe final plan.
+
 ## Cleanup after the event
 
 - Rotate Telegram, OpenAI, Linkup, Mem0, and ElevenLabs credentials.
