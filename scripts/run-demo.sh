@@ -7,6 +7,9 @@ LOG_TUNNEL="/tmp/cloudflared-hermes.log"
 PID_TUNNEL="/tmp/cloudflared-hermes.pid"
 PID_SERVER="/tmp/hermes-server.pid"
 
+echo "Updating from origin/main…"
+git pull --ff-only origin main
+
 echo "Building…"
 npm run build --silent
 
