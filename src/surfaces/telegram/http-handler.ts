@@ -25,6 +25,7 @@ import {
   handleConnectDestination,
   handleConnectCities,
   handleConnectLocation,
+  handleMem0Profile,
   handleConnectPaste,
   handleConnectSources,
   handleConnectStatus,
@@ -235,6 +236,11 @@ export async function handleHttpRequest(
 
     if (req.method === "POST" && url.pathname === "/api/connect/paste") {
       await handleConnectPaste(req, res, mem0);
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/mem0/profile") {
+      await handleMem0Profile(req, res, mem0);
       return;
     }
 

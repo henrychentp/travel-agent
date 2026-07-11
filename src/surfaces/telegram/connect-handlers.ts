@@ -22,7 +22,8 @@ import {
   telegramUserId,
   type TelegramWebAppUser,
 } from "./init-data.js";
-import { getTelegramBotToken, getWebAppUrl } from "../../shared/env.js";
+import { getTelegramBotToken, getWebAppUrl, isMem0Configured } from "../../shared/env.js";
+import type { UserId } from "../../shared/schemas.js";
 
 async function readBody(req: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
@@ -186,6 +187,49 @@ export async function handleConnectCities(
   res: ServerResponse,
 ) {
   json(res, 200, { cities: DESTINATION_CITIES });
+}
+
+/** Teammate handoff: read a traveller's Mem0 profile by Telegram user id. */
+export async function handleMem0Profile(
+  req: IncomingMessage,
+  res: ServerResponse,
+  mem0: Mem0Client,
+) {
+  const url = new URL(req.url ?? "/", "http://localhost");
+  const userId = url.searchParams.get("userId") as UserId | null;
+  const secret = url.searchParams.get("secret");
+  const expected = process.env.TEAMMATE_API_SECRET?.trim();
+
+  if (expected && secret !== expected) {
+    json(res, 401, { error: "unauthorized" });
+    return;
+  }
+  if (!userId?.startsWith("tg:")) {
+    json(res, 400, {
+      error: "userId required",
+      hint: "Use format tg:<telegram_id>, e.g. tg:123456789",
+    });
+    return;
+  }
+
+  try {
+    const profile = await mem0.getProfile(userId);
+    if (!profile) {
+      json(res, 404, {
+        error: "No profile found for this user",
+        userId,
+        mem0Configured: isMem0Configured(),
+      });
+      return;
+    }
+    json(res, 200, { ok: true, userId, profile });
+  } catch (err) {
+    json(res, 502, {
+      error: "Mem0 read failed",
+      hint: err instanceof Error ? err.message : "unknown error",
+      mem0Configured: isMem0Configured(),
+    });
+  }
 }
 
 export async function handleConnectPaste(

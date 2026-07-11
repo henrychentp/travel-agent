@@ -73,11 +73,7 @@ export async function onboardFromSwipes(
   }
 
   const evidence = swipesToEvidence(swipes, stampedAt);
-  for (const entry of evidence) {
-    profile.evidence.push(entry);
-    await deps.mem0.recordEvidence(userId, entry);
-  }
-
+  profile.evidence.push(...evidence);
   profile.updatedAt = stampedAt;
   await deps.mem0.saveProfile(profile);
 
