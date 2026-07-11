@@ -279,12 +279,16 @@ function webAppKeyboard() {
 }
 
 export async function syncTelegramMenuButton(): Promise<void> {
-  const url = getWebAppUrl();
+  await tgApi("setMyCommands", {
+    commands: [
+      { command: "start", description: "Open Hermes" },
+      { command: "onboarding", description: "Build your taste profile" },
+      { command: "demo", description: "Create itinerary, PDF and voice" },
+    ],
+  });
   await tgApi("setChatMenuButton", {
     menu_button: {
-      type: "web_app",
-      text: "Build taste profile",
-      web_app: { url },
+      type: "commands",
     },
   });
 }
