@@ -1,0 +1,23 @@
+#!/bin/sh
+# Local counterpart to the GitHub checklist gate. Configure once with:
+#   git config core.hooksPath .githooks
+
+set -eu
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+    continue
+  fi
+  if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
+    CHECKLIST_BASE_REF="HEAD~1" npm run check-checklist
+  else
+    CHECKLIST_BASE_REF="$remote_sha" npm run check-checklist
+  fi
+done
+
+if [ ! -x node_modules/.bin/tsc ]; then
+  echo "Dependencies are not installed. Run npm ci before pushing."
+  exit 1
+fi
+
+npm test

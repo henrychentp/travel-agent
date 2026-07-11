@@ -14,7 +14,8 @@
     "demo": "bash scripts/run-demo.sh",
     "tunnel:cf": "bash scripts/start-tunnel.sh",
     "tunnel": "ngrok http 8787",
-    "check-secrets": "node scripts/check-secrets.mjs"
+    "check-secrets": "node scripts/check-secrets.mjs",
+    "check-checklist": "node scripts/check-checklist-update.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
