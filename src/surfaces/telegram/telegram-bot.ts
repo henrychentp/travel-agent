@@ -74,22 +74,32 @@ function simplePdf(title: string, body: string): Uint8Array {
   return new Uint8Array(Buffer.from(output));
 }
 
-async function sendFinalAssets(chatId: number, itinerary: string, narration: string) {
+async function uploadTelegramAsset(token: string, method: "sendDocument" | "sendVoice", form: FormData): Promise<void> {
+  const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+    method: "POST",
+    body: form,
+  });
+  const result = await response.json().catch(() => null) as { ok?: boolean; description?: string } | null;
+  if (!response.ok || !result?.ok) {
+    throw new Error(`Telegram ${method} failed: ${result?.description ?? response.status}`);
+  }
+}
+
+/** PDF and voice are mandatory demo deliverables; any failure aborts the run visibly. */
+async function sendFinalAssets(chatId: number, itinerary: string, narration: string): Promise<void> {
   const token = getTelegramBotToken();
+  const elevenKey = process.env.ELEVENLABS_API_KEY;
+  const voiceId = process.env.ELEVENLABS_VOICE_ID;
+  if (!elevenKey || !voiceId) {
+    throw new Error("Demo delivery requires ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID.");
+  }
   const pdf = new Blob([simplePdf("Hermes itinerary", itinerary)], {
     type: "application/pdf",
   });
   const document = new FormData();
   document.set("chat_id", String(chatId));
   document.set("document", pdf, "hermes-recommendation.pdf");
-  await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
-    method: "POST",
-    body: document,
-  });
-
-  const elevenKey = process.env.ELEVENLABS_API_KEY;
-  const voiceId = process.env.ELEVENLABS_VOICE_ID;
-  if (!elevenKey || !voiceId) return;
+  await uploadTelegramAsset(token, "sendDocument", document);
 
   const voice = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
     method: "POST",
@@ -101,16 +111,13 @@ async function sendFinalAssets(chatId: number, itinerary: string, narration: str
     // 140–155 words is approximately one minute at the default narration pace.
     body: JSON.stringify({ text: narration, model_id: "eleven_multilingual_v2" }),
   });
-  if (!voice.ok) return;
+  if (!voice.ok) throw new Error(`ElevenLabs returned ${voice.status}: ${(await voice.text()).slice(0, 300)}`);
 
   const audio = new Blob([await voice.arrayBuffer()], { type: "audio/mpeg" });
   const form = new FormData();
   form.set("chat_id", String(chatId));
   form.set("voice", audio, "hermes-recommendation.mp3");
-  await fetch(`https://api.telegram.org/bot${token}/sendVoice`, {
-    method: "POST",
-    body: form,
-  });
+  await uploadTelegramAsset(token, "sendVoice", form);
 }
 
 function demoRequest(profile: TravellerProfile): TripRequest {
@@ -184,8 +191,14 @@ export async function runOnboardingDemo(chatId: number, userId: string): Promise
   const plan = await hermes.plan(userId, demoRequest(profile!));
   const itinerary = formatItinerary(plan);
   const narration = await oneMinuteBriefing(plan, profile!);
+  try {
+    await sendFinalAssets(chatId, itinerary, narration);
+  } catch (error) {
+    console.error("Hermes mandatory demo asset delivery failed", error);
+    await sendMessage(chatId, "I could not complete this demo because its required PDF or voice delivery failed. Nothing is being treated as complete; please retry after the delivery configuration is fixed.");
+    throw error;
+  }
   await sendMessage(chatId, itinerary);
-  await sendFinalAssets(chatId, itinerary, narration);
 }
 
 function webAppKeyboard() {
@@ -232,8 +245,8 @@ async function handleStart(chatId: number, firstName: string, userId: string) {
     chatId,
     `Welcome to *Hermes*, ${firstName}.\n\n` +
       `Use these two commands to get started:${saved ? destinationLine + locationLine + connectedLine : ""}\n\n` +
-      `1. Send *onboarding* — build or refresh your taste profile.\n` +
-      `2. When the taste cards are saved, send *demo* — Hermes creates your itinerary.`,
+      `1. Send */onboarding* — build or refresh your taste profile.\n` +
+      `2. When the taste cards are saved, send */demo* — Hermes creates your itinerary.`,
     { reply_markup: webAppKeyboard() },
   );
 }
@@ -260,8 +273,14 @@ async function handleConcierge(chatId: number, userId: string, text: string) {
   });
   const itinerary = formatItinerary(plan);
   const narration = await oneMinuteBriefing(plan, profile!);
+  try {
+    await sendFinalAssets(chatId, itinerary, narration);
+  } catch (error) {
+    console.error("Hermes mandatory concierge asset delivery failed", error);
+    await sendMessage(chatId, "I could not complete this recommendation because its required PDF or voice delivery failed. Nothing is being treated as complete; please retry after the delivery configuration is fixed.");
+    throw error;
+  }
   await sendMessage(chatId, itinerary);
-  await sendFinalAssets(chatId, itinerary, narration);
 }
 
 async function handleWebAppData(chatId: number, userId: string, data: string) {
@@ -297,6 +316,16 @@ export async function processTelegramUpdate(update: Record<string, unknown>) {
 
   if (text.startsWith("/start")) {
     await handleStart(chatId, from.first_name, userId);
+    return;
+  }
+
+  if (text.trim().toLowerCase() === "/onboarding") {
+    await sendMessage(chatId, "Open the Mini App, complete your taste cards and trip details, then return here and send */demo*.", { reply_markup: webAppKeyboard() });
+    return;
+  }
+
+  if (text.trim().toLowerCase() === "/demo") {
+    await runOnboardingDemo(chatId, userId);
     return;
   }
 
