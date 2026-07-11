@@ -261,3 +261,22 @@ Recommended modeling principles:
 - Allow multiple companion-context variants where needed, such as solo, couple, and family travel modes.
 - Preserve free-text memories, but normalize recurring themes into structured tags.
 - Track deal-breakers as strict exclusion rules, not just low-ranked dislikes.
+
+## Onboarding surfaces (Person 1)
+
+Taste is collected through two complementary channels:
+
+| Channel | What it captures | Confidence |
+| --- | --- | --- |
+| **Telegram swipe mini app** | Visual preference probes (pace, food, accommodation vibe, deal-breakers) | 0.85 inferred |
+| **Telegram chat with Hermes** | Hard facts (home city, passport, budget, dietary restrictions, communication) | 1.0 stated |
+
+Swipe cards map to `TravellerProfile` categories via `src/skills/onboarding/swipe.ts`.
+Each swipe also appends an `evidence[]` entry (`swipe-accept` / `swipe-reject`).
+
+**Minimum viable via swipe alone:** motivations, pace, accommodation, food, activities,
+comfort/risk, sensory, deal-breakers (soft signals). Chat gap-fill still required for
+identity, budget, constraints, and communication before `planTrip()` can run safely.
+
+**Future context layers (not yet implemented):** Gmail / Google Calendar import for
+situational context (meeting times, flight confirmations) on top of durable taste.

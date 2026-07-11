@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Hermes — Taste Profile</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --bg: #0c0c0f;
+      --surface: #16161c;
+      --text: #f4f4f6;
+      --muted: #8b8b9a;
+      --accent: #c9a962;
+      --pass: #e85d5d;
+      --love: #5dce8a;
+      --super: #6eb5ff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow: hidden;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    .screen { display: none; min-height: 100vh; flex-direction: column; }
+    .screen.active { display: flex; }
+
+    /* Intro */
+    .intro { padding: 2rem 1.5rem; justify-content: center; text-align: center; }
+    .intro .logo { font-size: 2.5rem; margin-bottom: 0.5rem; }
+    .intro h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 0.75rem; }
+    .intro p { color: var(--muted); line-height: 1.5; font-size: 0.95rem; max-width: 300px; margin: 0 auto 2rem; }
+    .btn-primary {
+      background: var(--accent);
+      color: #0c0c0f;
+      border: none;
+      padding: 1rem 2rem;
+      border-radius: 14px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      max-width: 280px;
+      margin: 0 auto;
+    }
+
+    /* Swipe */
+    .header { padding: 1rem 1.25rem 0.5rem; }
+    .round-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent); }
+    .round-title { font-size: 1.1rem; font-weight: 600; margin-top: 0.2rem; }
+    .round-sub { font-size: 0.8rem; color: var(--muted); margin-top: 0.15rem; }
+    .progress-track { height: 3px; background: #2a2a32; border-radius: 2px; margin: 0.75rem 1.25rem; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.3s ease; }
+
+    .deck { flex: 1; position: relative; margin: 0.5rem 1rem 1rem; min-height: 380px; }
+    .card {
+      position: absolute; inset: 0;
+      border-radius: 20px;
+      display: flex; flex-direction: column; justify-content: flex-end;
+      padding: 1.75rem;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      cursor: grab;
+      touch-action: none;
+      will-change: transform;
+    }
+    .card.dragging { cursor: grabbing; transition: none; }
+    .card .emoji { font-size: 3.5rem; margin-bottom: auto; padding-top: 1rem; }
+    .card h2 { font-size: 1.45rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
+    .card p { font-size: 0.9rem; opacity: 0.85; margin-top: 0.5rem; line-height: 1.4; }
+    .stamp {
+      position: absolute; top: 2rem; padding: 0.4rem 0.8rem;
+      border: 3px solid; border-radius: 8px;
+      font-size: 1.4rem; font-weight: 800; letter-spacing: 0.05em;
+      opacity: 0; transform: rotate(-12deg);
+    }
+    .stamp.pass { left: 1.5rem; color: var(--pass); border-color: var(--pass); }
+    .stamp.love { right: 1.5rem; color: var(--love); border-color: var(--love); transform: rotate(12deg); }
+
+    .actions {
+      display: flex; justify-content: center; align-items: center; gap: 1.25rem;
+      padding: 0 1rem 1.5rem;
+    }
+    .action-btn {
+      width: 56px; height: 56px; border-radius: 50%; border: none;
+      font-size: 1.4rem; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--surface);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    .action-btn.pass { color: var(--pass); }
+    .action-btn.love { color: var(--love); width: 64px; height: 64px; font-size: 1.6rem; }
+    .action-btn.super { color: var(--super); font-size: 1.1rem; }
+
+    /* Done */
+    .done { padding: 2rem 1.5rem; justify-content: center; text-align: center; }
+    .done .check { font-size: 3rem; margin-bottom: 1rem; }
+    .done h2 { font-size: 1.35rem; margin-bottom: 0.5rem; }
+    .done p { color: var(--muted); font-size: 0.9rem; line-height: 1.5; }
+    .done .status { margin-top: 1.5rem; font-size: 0.85rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div id="intro" class="screen intro active">
+    <div class="logo">🪽</div>
+    <h1>Build your taste profile</h1>
+    <p>Swipe on travel moments so Hermes knows what to suggest when you land somewhere new with a few hours to spare.</p>
+    <button class="btn-primary" id="startBtn">Start swiping</button>
+  </div>
+
+  <div id="swipe" class="screen">
+    <div class="header">
+      <div class="round-label" id="roundLabel">Round 1</div>
+      <div class="round-title" id="roundTitle">Free hours</div>
+      <div class="round-sub" id="roundSub"></div>
+    </div>
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="deck" id="deck"></div>
+    <div class="actions">
+      <button class="action-btn pass" id="btnPass" aria-label="Pass">✕</button>
+      <button class="action-btn super" id="btnSuper" aria-label="Essential">★</button>
+      <button class="action-btn love" id="btnLove" aria-label="Love">♥</button>
+    </div>
+  </div>
+
+  <div id="done" class="screen done">
+    <div class="check">✓</div>
+    <h2>Taste profile saved</h2>
+    <p>Hermes will use this when you ask what to do on a layover or free afternoon.</p>
+    <div class="status" id="doneStatus">Saving…</div>
+  </div>
+
+  <script>
+    const tg = window.Telegram?.WebApp;
+    if (tg) { tg.ready(); tg.expand(); }
+
+    let deck = [];
+    let rounds = [];
+    let index = 0;
+    const swipes = [];
+
+    async function loadDeck() {
+      const res = await fetch('/api/onboarding/deck');
+      const data = await res.json();
+      deck = data.cards;
+      rounds = data.rounds;
+    }
+
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    function updateHeader() {
+      const card = deck[index];
+      if (!card) return;
+      const round = rounds.find(r => r.id === card.round) || {};
+      document.getElementById('roundLabel').textContent = `Round ${card.round} of ${rounds.length}`;
+      document.getElementById('roundTitle').textContent = round.title || card.roundTitle;
+      document.getElementById('roundSub').textContent = round.subtitle || '';
+      document.getElementById('progressFill').style.width = `${(index / deck.length) * 100}%`;
+    }
+
+    function renderCard() {
+      const container = document.getElementById('deck');
+      container.innerHTML = '';
+      if (index >= deck.length) { finish(); return; }
+
+      const card = deck[index];
+      const el = document.createElement('div');
+      el.className = 'card';
+      el.style.background = card.gradient;
+      el.innerHTML = `
+        <div class="stamp pass">NOPE</div>
+        <div class="stamp love">YES</div>
+        <div class="emoji">${card.emoji}</div>
+        <h2>${card.title}</h2>
+        <p>${card.subtitle}</p>
+      `;
+      container.appendChild(el);
+      updateHeader();
+      bindDrag(el);
+    }
+
+    function swipe(direction) {
+      if (index >= deck.length) return;
+      swipes.push({ cardId: deck[index].id, direction });
+      index++;
+      if (tg?.HapticFeedback) {
+        tg.HapticFeedback.impactOccurred(direction === 'left' ? 'light' : 'medium');
+      }
+      renderCard();
+    }
+
+    function bindDrag(el) {
+      let startX = 0, currentX = 0, dragging = false;
+      const passStamp = el.querySelector('.stamp.pass');
+      const loveStamp = el.querySelector('.stamp.love');
+
+      const onStart = (x) => { startX = x; dragging = true; el.classList.add('dragging'); };
+      const onMove = (x) => {
+        if (!dragging) return;
+        currentX = x - startX;
+        const rot = currentX * 0.08;
+        el.style.transform = `translateX(${currentX}px) rotate(${rot}deg)`;
+        const op = Math.min(Math.abs(currentX) / 100, 1);
+        if (currentX < 0) { passStamp.style.opacity = op; loveStamp.style.opacity = 0; }
+        else { loveStamp.style.opacity = op; passStamp.style.opacity = 0; }
+      };
+      const onEnd = () => {
+        if (!dragging) return;
+        dragging = false;
+        el.classList.remove('dragging');
+        if (currentX < -80) { flyOff(el, -1); swipe('left'); }
+        else if (currentX > 80) { flyOff(el, 1); swipe('right'); }
+        else { el.style.transform = ''; passStamp.style.opacity = 0; loveStamp.style.opacity = 0; }
+        currentX = 0;
+      };
+
+      el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); onStart(e.clientX); });
+      el.addEventListener('pointermove', e => onMove(e.clientX));
+      el.addEventListener('pointerup', onEnd);
+      el.addEventListener('pointercancel', onEnd);
+    }
+
+    function flyOff(el, dir) {
+      el.style.transition = 'transform 0.3s ease, opacity 0.3s';
+      el.style.transform = `translateX(${dir * 400}px) rotate(${dir * 20}deg)`;
+      el.style.opacity = '0';
+    }
+
+    async function finish() {
+      showScreen('done');
+      const status = document.getElementById('doneStatus');
+
+      try {
+        const res = await fetch('/api/onboarding/swipes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            initData: tg?.initData || '',
+            swipes,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Save failed');
+        status.textContent = 'Saved — check your chat with Hermes.';
+        if (tg) tg.close();
+      } catch (err) {
+        status.textContent = 'Saved locally — return to chat.';
+        if (tg?.initData) {
+          try { tg.sendData(JSON.stringify({ swipes })); } catch (_) {}
+        }
+      }
+    }
+
+    document.getElementById('startBtn').addEventListener('click', () => {
+      showScreen('swipe');
+      renderCard();
+    });
+    document.getElementById('btnPass').addEventListener('click', () => swipe('left'));
+    document.getElementById('btnLove').addEventListener('click', () => swipe('right'));
+    document.getElementById('btnSuper').addEventListener('click', () => swipe('super'));
+
+    loadDeck();
+  </script>
+</body>
+</html>
