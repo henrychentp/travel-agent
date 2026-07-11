@@ -85,7 +85,10 @@ async function uploadTelegramAsset(token: string, method: "sendDocument" | "send
   }
 }
 
-/** PDF and voice are mandatory demo deliverables; any failure aborts the run visibly. */
+/**
+ * Deliver the final assets after planning has completed. A delivery-provider
+ * outage must never discard an otherwise valid itinerary.
+ */
 async function sendFinalAssets(chatId: number, itinerary: string, narration: string): Promise<void> {
   const token = getTelegramBotToken();
   const elevenKey = process.env.ELEVENLABS_API_KEY;
@@ -118,6 +121,19 @@ async function sendFinalAssets(chatId: number, itinerary: string, narration: str
   form.set("chat_id", String(chatId));
   form.set("voice", audio, "hermes-recommendation.mp3");
   await uploadTelegramAsset(token, "sendVoice", form);
+}
+
+function deliveryFailureMessage(error: unknown): string {
+  const reason = error instanceof Error ? error.message : "an unknown delivery error";
+  if (reason.includes("ELEVENLABS_API_KEY") || reason.includes("ELEVENLABS_VOICE_ID")) {
+    return "Voice briefing is not configured yet.";
+  }
+  if (reason.includes("ElevenLabs returned")) {
+    return "ElevenLabs could not create the voice briefing.";
+  }
+  if (reason.includes("Telegram sendDocument")) return "Telegram could not upload the PDF.";
+  if (reason.includes("Telegram sendVoice")) return "Telegram could not upload the voice briefing.";
+  return "The PDF or voice briefing could not be delivered.";
 }
 
 function demoRequest(profile: TravellerProfile): TripRequest {
@@ -194,9 +210,10 @@ export async function runOnboardingDemo(chatId: number, userId: string): Promise
   try {
     await sendFinalAssets(chatId, itinerary, narration);
   } catch (error) {
-    console.error("Hermes mandatory demo asset delivery failed", error);
-    await sendMessage(chatId, "I could not complete this demo because its required PDF or voice delivery failed. Nothing is being treated as complete; please retry after the delivery configuration is fixed.");
-    throw error;
+    console.error("Hermes demo asset delivery failed", error);
+    await sendMessage(chatId, itinerary);
+    await sendMessage(chatId, `Your itinerary is ready. ${deliveryFailureMessage(error)} I’ll keep the plan available in chat while that delivery is fixed.`);
+    return;
   }
   await sendMessage(chatId, itinerary);
 }
@@ -276,9 +293,10 @@ async function handleConcierge(chatId: number, userId: string, text: string) {
   try {
     await sendFinalAssets(chatId, itinerary, narration);
   } catch (error) {
-    console.error("Hermes mandatory concierge asset delivery failed", error);
-    await sendMessage(chatId, "I could not complete this recommendation because its required PDF or voice delivery failed. Nothing is being treated as complete; please retry after the delivery configuration is fixed.");
-    throw error;
+    console.error("Hermes concierge asset delivery failed", error);
+    await sendMessage(chatId, itinerary);
+    await sendMessage(chatId, `Your recommendation is ready. ${deliveryFailureMessage(error)} I’ll keep the plan available in chat while that delivery is fixed.`);
+    return;
   }
   await sendMessage(chatId, itinerary);
 }
