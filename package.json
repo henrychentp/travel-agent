@@ -1,0 +1,16 @@
+{
+  "name": "travel-agent",
+  "version": "0.1.0",
+  "description": "Hermes: one travel agent coordinating three specialist workstreams (onboarding, whole-trip planner, in-trip concierge) over shared Mem0 taste and Trip State.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "tsc && node --test \"dist/tests/**/*.test.js\""
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0"
+  }
+}
