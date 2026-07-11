@@ -16,12 +16,12 @@ export interface CultureBrief {
 }
 
 export interface Culture {
-  curate(profile: TravellerProfile, ops: PatchOp[]): Promise<CultureBrief>;
+  curate(profile: TravellerProfile, ops: PatchOp[], directorIntent?: string): Promise<CultureBrief>;
 }
 
 /** Stub Culture — one-line summary. TODO(Agent C): LLM-curated brief + audio. */
 export class StubCulture implements Culture {
-  async curate(_profile: TravellerProfile, ops: PatchOp[]): Promise<CultureBrief> {
+  async curate(_profile: TravellerProfile, ops: PatchOp[], _directorIntent?: string): Promise<CultureBrief> {
     return {
       summary:
         ops.length === 0
@@ -38,7 +38,7 @@ type Chat = (messages: ChatMessage[]) => Promise<string>;
 export class OpenAICulture implements Culture {
   constructor(private readonly chatFn: Chat = chat) {}
 
-  async curate(profile: TravellerProfile, ops: PatchOp[]): Promise<CultureBrief> {
+  async curate(profile: TravellerProfile, ops: PatchOp[], directorIntent?: string): Promise<CultureBrief> {
     const interests = profile.activities.categories?.join(", ") || "the traveller's stated preferences";
     const candidates = ops.map((op) => op.after?.kind === "activity" ? op.after.title : op.reason)
       .filter(Boolean)
@@ -50,7 +50,7 @@ export class OpenAICulture implements Culture {
       },
       {
         role: "user",
-        content: `Traveller interests: ${interests}. Proposed itinerary changes: ${candidates}. Explain why this fits in at most 70 words.`,
+        content: `Director's intended experience: ${directorIntent ?? "a balanced local plan"}. Traveller interests: ${interests}. Proposed itinerary changes: ${candidates}. Explain why this fits in at most 70 words.`,
       },
     ]);
     return { summary, highlights: [] };

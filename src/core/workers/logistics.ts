@@ -17,6 +17,7 @@ export interface Logistics {
     profile: TravellerProfile,
     ops: PatchOp[],
     ctx: RevisionContext,
+    directorRules?: string[],
   ): Promise<RevisionResult>;
 }
 
@@ -25,8 +26,11 @@ export class DefaultLogistics implements Logistics {
     profile: TravellerProfile,
     ops: PatchOp[],
     ctx: RevisionContext,
+    _directorRules?: string[],
   ): Promise<RevisionResult> {
-    // TODO(Agent B): fetch live closures + travel times before the loop.
+    // The Director supplies LLM-extracted rules, while this worker remains the
+    // deterministic authority for feasibility. TODO(Agent B): fetch live
+    // closures + travel times before the loop.
     return runRevisionLoop(profile, ops, ctx);
   }
 }

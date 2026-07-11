@@ -79,6 +79,9 @@ real-user/account actions.
 ## P2 — Dynamic agent organisation
 
 - [x] Director creates a request-specific subtask plan rather than a fixed chain.
+- [x] Director uses an LLM intake brief to turn traveller context into shared
+      priorities for Scout, Logistics, and Culture; it falls back safely to
+      deterministic rules when the model is unavailable.
 - [ ] Local Scout now runs up to three Linkup fast searches in parallel, merges source-grounded candidates, and tolerates partial search failures; live weather/event proof remains pending.
 - [ ] Logistics Guru now rejects out-of-window and duplicate candidates, protects requested downtime, and limits low-walking days to one activity area; live routing, availability, and budget-provider proof remain pending.
 - [ ] Culture Concierge has an opt-in OpenAI-backed rationale path using stored interests; live preference/pace/food/accessibility proof remains pending.
