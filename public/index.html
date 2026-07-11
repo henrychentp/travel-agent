@@ -492,10 +492,17 @@
       initData = initData || sessionStorage.getItem(SESSION_INIT) || '';
       if (!unsafeUser?.id) {
         try {
-          unsafeUser = JSON.parse(sessionStorage.getItem(SESSION_USER) || 'null');
+          unsafeUser = normalizeUser(JSON.parse(sessionStorage.getItem(SESSION_USER) || 'null'));
         } catch { unsafeUser = null; }
       }
       resumeToken = resumeToken || sessionStorage.getItem(SESSION_RESUME) || '';
+    }
+
+    function normalizeUser(raw) {
+      if (!raw?.id) return null;
+      const id = typeof raw.id === 'string' ? Number(raw.id) : raw.id;
+      if (!Number.isFinite(id) || id <= 0) return null;
+      return { ...raw, id, first_name: raw.first_name || 'Traveller' };
     }
 
     function captureFromTelegram() {
@@ -503,7 +510,7 @@
       tg.ready();
       tg.expand();
       if (tg.initData) initData = tg.initData;
-      if (tg.initDataUnsafe?.user?.id) unsafeUser = tg.initDataUnsafe.user;
+      if (tg.initDataUnsafe?.user?.id) unsafeUser = normalizeUser(tg.initDataUnsafe.user);
       persistSession();
       return !!(initData || unsafeUser?.id || resumeToken);
     }
@@ -511,7 +518,6 @@
     async function bootstrapSession() {
       captureFromTelegram();
       restoreSession();
-      if (!tg) return false;
 
       const tryBootstrap = async (payload) => {
         const res = await fetch('/api/session/bootstrap', {
@@ -530,14 +536,19 @@
         return false;
       };
 
-      if (await tryBootstrap(authPayload())) return true;
-
-      if (initData) {
-        initData = '';
-        sessionStorage.removeItem(SESSION_INIT);
+      for (let attempt = 0; attempt < 3; attempt++) {
+        captureFromTelegram();
+        restoreSession();
         if (await tryBootstrap(authPayload())) return true;
+        if (initData) {
+          initData = '';
+          sessionStorage.removeItem(SESSION_INIT);
+          if (await tryBootstrap(authPayload())) return true;
+        }
+        if (!tg && !unsafeUser?.id) return false;
+        await new Promise((r) => setTimeout(r, 400));
       }
-      return false;
+      return !!resumeToken;
     }
 
     function showScreen(id) {
@@ -564,7 +575,7 @@
     }
 
     function sessionOk() {
-      return !!resumeToken || !!(tg && (initData || unsafeUser?.id));
+      return !!resumeToken || !!unsafeUser?.id || !!(tg && initData);
     }
 
     async function waitForTelegram(maxMs = 15000) {
@@ -601,7 +612,7 @@
     function showSessionBanner(ok) {
       const b = document.getElementById('banner');
       if (ok) { b.classList.remove('show'); return; }
-      b.innerHTML = 'Session not detected. <strong>Send /start</strong> in the Hermes chat, then tap <strong>🎯 Build taste profile</strong> (the keyboard button — not a browser link). If you just changed the tunnel URL, /start again for a fresh button.';
+      b.innerHTML = 'Session not detected. Close this app, send <strong>/start</strong> in the Hermes chat, then tap <strong>🎯 Build taste profile</strong> (the keyboard button — not a browser link).';
       b.classList.add('show');
     }
 
@@ -669,9 +680,10 @@
       }
       if (p.get('google') === 'error') {
         const reason = p.get('reason');
-        const hint = reason
-          ? decodeURIComponent(reason)
-          : 'Google sign-in failed. Try again or skip for now.';
+        let hint = reason ? decodeURIComponent(reason) : 'Google sign-in failed. Try again or skip for now.';
+        if (/deleted_client|deleted/i.test(hint)) {
+          hint = 'Google OAuth client was deleted in Cloud Console. Ask the team to create a new Web client and update Vercel env vars, then try again.';
+        }
         showFeedback(hint, true);
         clearUrlParams();
         showScreen('connect');
@@ -692,7 +704,7 @@
 
     // Google — open OAuth in the system browser (Google blocks embedded WebViews)
     document.getElementById('btnGoogle').addEventListener('click', async () => {
-      if (!sessionOk()) { showSessionBanner(false); return; }
+      if (!(await requireSession())) return;
       setLoading('btnGoogle', true);
       showFeedback('Opening Google sign-in in your browser…');
       try {
@@ -717,7 +729,7 @@
     async function persistDestination(city) {
       const value = city.trim();
       if (value.length < 2 || value === lastSavedCity || savingCity) return;
-      if (!sessionOk()) return;
+      if (!(await requireSession())) return;
       savingCity = true;
       try {
         const data = await apiPost('/api/connect/destination', { city: value });
@@ -744,8 +756,8 @@
     citySearchEl.addEventListener('blur', () => persistDestination(citySearchEl.value));
 
     // Current location (GPS)
-    document.getElementById('btnLocation').addEventListener('click', () => {
-      if (!sessionOk()) { showSessionBanner(false); return; }
+    document.getElementById('btnLocation').addEventListener('click', async () => {
+      if (!(await requireSession())) return;
       if (!navigator.geolocation) { showFeedback('Location not supported on this device.', true); return; }
       const btn = document.getElementById('btnLocation');
       btn.classList.add('loading');
@@ -980,6 +992,7 @@
       restoreSession();
       if (handleReturnParams()) {
         await waitForTelegram();
+        showFeedback('Linking your Telegram session…');
         await bootstrapSession();
         const ok = sessionOk();
         showSessionBanner(ok);
@@ -989,6 +1002,7 @@
         return;
       }
       await waitForTelegram();
+      showFeedback('Linking your Telegram session…');
       await bootstrapSession();
       const ok = sessionOk();
       showSessionBanner(ok);
