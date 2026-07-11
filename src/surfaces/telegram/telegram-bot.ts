@@ -327,7 +327,14 @@ async function handleConcierge(chatId: number, userId: string, text: string) {
     return;
   }
 
-  const moment = await extractMomentContext(text, profile!);
+  let moment;
+  try {
+    moment = await extractMomentContext(text, profile!);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Tell me which city you are in and how much time you have.";
+    await sendMessage(chatId, message);
+    return;
+  }
   const date = moment.startAt.slice(0, 10);
   const request: TripRequest = {
     destination: moment.location,
@@ -376,8 +383,9 @@ export async function processTelegramUpdate(update: Record<string, unknown>) {
   }
 
   const text = (msg.text as string) ?? "";
+  const command = text.trim().toLowerCase().replace(/@[^\s]+$/, "");
 
-  if (text.startsWith("/start")) {
+  if (command === "/start") {
     await handleStart(chatId, from.first_name, userId);
     return;
   }
@@ -387,12 +395,12 @@ export async function processTelegramUpdate(update: Record<string, unknown>) {
     return;
   }
 
-  if (text.trim().toLowerCase() === "/onboarding") {
+  if (command === "/onboarding") {
     await sendMessage(chatId, "Open the Mini App, complete your taste cards and trip details, then return here and send */demo*.", { reply_markup: webAppKeyboard() });
     return;
   }
 
-  if (text.trim().toLowerCase() === "/demo") {
+  if (command === "/demo" || command === "demo") {
     await runOnboardingDemo(chatId, userId);
     return;
   }
