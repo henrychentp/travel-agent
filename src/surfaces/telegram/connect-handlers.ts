@@ -14,17 +14,19 @@ import {
   getGoogleEnv,
   getGoogleSetupInfo,
   googleAuthUrl,
+  parseGoogleOAuthState,
   saveGoogleTokens,
 } from "../../skills/onboarding/google.js";
 import {
   issueResumeToken,
   resolveTelegramUser,
   telegramUserId,
+  verifyResumeToken,
   type TelegramWebAppUser,
 } from "./init-data.js";
-import { getTelegramBotToken, getWebAppUrl, isMem0Configured } from "../../shared/env.js";
+import { getTelegramBotToken, getWebAppUrl, isMem0Configured, isTelegramConfigured } from "../../shared/env.js";
 import type { UserId } from "../../shared/schemas.js";
-import { runOnboardingDemo } from "./telegram-bot.js";
+import { runOnboardingDemo, tgApi } from "./telegram-bot.js";
 
 async function readBody(req: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
@@ -338,7 +340,7 @@ export async function handleGoogleAuthUrl(
   if (!user) return;
 
   const userId = telegramUserId(user);
-  const authUrl = googleAuthUrl(userId);
+  const authUrl = googleAuthUrl(userId, resumeToken);
   if (!authUrl) {
     const setup = getGoogleSetupInfo();
     json(res, 503, {
@@ -399,12 +401,19 @@ export async function handleGoogleCallback(
 ) {
   const url = new URL(req.url ?? "/", "http://localhost");
   const code = url.searchParams.get("code");
-  const userId = url.searchParams.get("state");
+  const oauthState = parseGoogleOAuthState(url.searchParams.get("state"));
 
-  if (!code || !userId) {
+  if (!code || !oauthState?.userId) {
     res.writeHead(400).end("Missing code or state");
     return;
   }
+
+  const userId = oauthState.userId;
+  const botToken = getTelegramBotToken();
+  const resumeFromState =
+    oauthState.resumeToken && verifyResumeToken(oauthState.resumeToken, botToken)
+      ? oauthState.resumeToken
+      : undefined;
 
   try {
     const tokens = await exchangeGoogleCode(code);
@@ -414,7 +423,7 @@ export async function handleGoogleCallback(
     await applyImport(userId, { source: "google", data: signals }, { mem0 });
 
     const n = signals.emails.length + signals.calendar.length;
-    const resume = issueResumeToken(userId, getTelegramBotToken());
+    const resume = resumeFromState ?? issueResumeToken(userId, botToken);
     res.writeHead(302, {
       Location: `${getWebAppUrl()}/?google=connected&signals=${n}&resume=${encodeURIComponent(resume)}`,
     });
@@ -461,4 +470,66 @@ export async function handleConnectStatus(
     googleConfigured: getGoogleEnv() !== null,
     googleRedirectUri: getGoogleSetupInfo().redirectUri,
   });
+}
+
+/** Read-only check: bot username, webhook, and mini app menu URL vs expected. */
+export async function handleTelegramDiagnostics(
+  _req: IncomingMessage,
+  res: ServerResponse,
+) {
+  const expectedWebAppUrl = getWebAppUrl();
+  if (!isTelegramConfigured()) {
+    json(res, 200, {
+      ok: false,
+      telegramConfigured: false,
+      expectedWebAppUrl,
+      hint: "Set TELEGRAM_BOT_TOKEN on Vercel to the @travel112bot bot token, then call /api/setup?secret=SETUP_SECRET",
+    });
+    return;
+  }
+
+  try {
+    const me = (await tgApi("getMe")) as {
+      result?: { username?: string; first_name?: string };
+    };
+    const menu = (await tgApi("getChatMenuButton")) as {
+      result?: { type?: string; web_app?: { url?: string }; text?: string };
+    };
+    const webhook = (await tgApi("getWebhookInfo")) as {
+      result?: { url?: string; pending_update_count?: number };
+    };
+
+    const menuUrl = menu.result?.web_app?.url ?? null;
+    const webhookUrl = webhook.result?.url ?? null;
+    const norm = (u: string | null) => u?.replace(/\/$/, "") ?? null;
+    const menuUrlOk = norm(menuUrl) === norm(expectedWebAppUrl);
+    const webhookOk = webhookUrl === `${expectedWebAppUrl}/api/telegram/webhook`;
+
+    json(res, 200, {
+      ok: menuUrlOk && webhookOk,
+      telegramConfigured: true,
+      bot: me.result?.username ? `@${me.result.username}` : null,
+      botName: me.result?.first_name ?? null,
+      expectedWebAppUrl,
+      menuButtonUrl: menuUrl,
+      menuButtonOk: menuUrlOk,
+      webhookUrl,
+      webhookOk,
+      pendingUpdates: webhook.result?.pending_update_count ?? 0,
+      setupUrl: process.env.SETUP_SECRET
+        ? `${expectedWebAppUrl}/api/setup?secret=SETUP_SECRET`
+        : null,
+      hint: !menuUrlOk || !webhookOk
+        ? "Call /api/setup?secret=YOUR_SETUP_SECRET once to register the mini app URL and webhook for this bot."
+        : "Telegram wiring looks correct. Open the mini app from the keyboard button in chat.",
+    });
+  } catch (err) {
+    json(res, 200, {
+      ok: false,
+      telegramConfigured: true,
+      expectedWebAppUrl,
+      error: err instanceof Error ? err.message : String(err),
+      hint: "TELEGRAM_BOT_TOKEN is set but invalid. Use the token for @travelagent from BotFather.",
+    });
+  }
 }

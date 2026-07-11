@@ -42,7 +42,31 @@ export function getGoogleSetupInfo(): {
   };
 }
 
-export function googleAuthUrl(userId: UserId): string | null {
+export function encodeGoogleOAuthState(userId: UserId, resumeToken?: string): string {
+  if (!resumeToken) return userId;
+  return Buffer.from(JSON.stringify({ u: userId, r: resumeToken })).toString("base64url");
+}
+
+export function parseGoogleOAuthState(
+  raw: string | null,
+): { userId: UserId; resumeToken?: string } | null {
+  if (!raw?.trim()) return null;
+  if (raw.startsWith("tg:")) return { userId: raw as UserId };
+  try {
+    const parsed = JSON.parse(Buffer.from(raw, "base64url").toString()) as {
+      u?: string;
+      r?: string;
+    };
+    if (parsed.u?.startsWith("tg:")) {
+      return { userId: parsed.u as UserId, resumeToken: parsed.r };
+    }
+  } catch {
+    /* legacy plain userId */
+  }
+  return raw.startsWith("tg:") ? { userId: raw as UserId } : null;
+}
+
+export function googleAuthUrl(userId: UserId, resumeToken?: string): string | null {
   const env = getGoogleEnv();
   if (!env) return null;
   const params = new URLSearchParams({
@@ -52,7 +76,7 @@ export function googleAuthUrl(userId: UserId): string | null {
     scope: SCOPES,
     access_type: "offline",
     prompt: "consent",
-    state: userId,
+    state: encodeGoogleOAuthState(userId, resumeToken),
   });
   return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
 }

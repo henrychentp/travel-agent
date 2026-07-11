@@ -10,6 +10,7 @@ import {
   getWebAppUrl,
   isGoogleConfigured,
   isMem0Configured,
+  isTelegramConfigured,
   getTelegramAllowUnsafeUser,
 } from "../../shared/env.js";
 import {
@@ -34,6 +35,7 @@ import {
   handleGoogleStart,
   handleOnboardingComplete,
   handleSessionBootstrap,
+  handleTelegramDiagnostics,
 } from "./connect-handlers.js";
 import {
   resolveTelegramUser,
@@ -169,6 +171,7 @@ export async function handleHttpRequest(
         JSON.stringify({
           ok: true,
           webAppUrl: base,
+          telegramConfigured: isTelegramConfigured(),
           googleConfigured: isGoogleConfigured(),
           mem0Configured: isMem0Configured(),
           allowUnsafeUser: getTelegramAllowUnsafeUser(),
@@ -180,6 +183,11 @@ export async function handleHttpRequest(
           },
         }),
       );
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/telegram/status") {
+      await handleTelegramDiagnostics(req, res);
       return;
     }
 

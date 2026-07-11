@@ -468,19 +468,37 @@
     const SESSION_RESUME = 'hermes_resume';
 
     function persistSession() {
-      if (initData) sessionStorage.setItem(SESSION_INIT, initData);
-      if (unsafeUser?.id) sessionStorage.setItem(SESSION_USER, JSON.stringify(unsafeUser));
-      if (resumeToken) sessionStorage.setItem(SESSION_RESUME, resumeToken);
+      if (initData) {
+        sessionStorage.setItem(SESSION_INIT, initData);
+        localStorage.setItem(SESSION_INIT, initData);
+      }
+      if (unsafeUser?.id) {
+        const raw = JSON.stringify(unsafeUser);
+        sessionStorage.setItem(SESSION_USER, raw);
+        localStorage.setItem(SESSION_USER, raw);
+      }
+      if (resumeToken) {
+        sessionStorage.setItem(SESSION_RESUME, resumeToken);
+        localStorage.setItem(SESSION_RESUME, resumeToken);
+      }
     }
 
     function restoreSession() {
-      initData = initData || sessionStorage.getItem(SESSION_INIT) || '';
+      initData = initData || sessionStorage.getItem(SESSION_INIT) || localStorage.getItem(SESSION_INIT) || '';
       if (!unsafeUser?.id) {
+        const raw =
+          sessionStorage.getItem(SESSION_USER) ||
+          localStorage.getItem(SESSION_USER) ||
+          'null';
         try {
-          unsafeUser = normalizeUser(JSON.parse(sessionStorage.getItem(SESSION_USER) || 'null'));
+          unsafeUser = normalizeUser(JSON.parse(raw));
         } catch { unsafeUser = null; }
       }
-      resumeToken = resumeToken || sessionStorage.getItem(SESSION_RESUME) || '';
+      resumeToken =
+        resumeToken ||
+        sessionStorage.getItem(SESSION_RESUME) ||
+        localStorage.getItem(SESSION_RESUME) ||
+        '';
     }
 
     function normalizeUser(raw) {
@@ -496,6 +514,10 @@
       tg.expand();
       if (tg.initData) initData = tg.initData;
       if (tg.initDataUnsafe?.user?.id) unsafeUser = normalizeUser(tg.initDataUnsafe.user);
+      const startParam = tg.initDataUnsafe?.start_param;
+      if (startParam?.startsWith('resume_')) {
+        resumeToken = startParam.slice('resume_'.length);
+      }
       persistSession();
       return !!(initData || unsafeUser?.id || resumeToken);
     }
@@ -530,7 +552,7 @@
           sessionStorage.removeItem(SESSION_INIT);
           if (await tryBootstrap(authPayload())) return true;
         }
-        if (!tg && !unsafeUser?.id) return false;
+        if (!tg && !unsafeUser?.id && !resumeToken) return false;
         await new Promise((r) => setTimeout(r, 400));
       }
       return !!resumeToken;
@@ -556,11 +578,15 @@
     }
 
     function authPayload() {
-      return { initData, unsafeUser, resumeToken: resumeToken || undefined };
+      const payload = {};
+      if (initData) payload.initData = initData;
+      if (unsafeUser?.id) payload.unsafeUser = unsafeUser;
+      if (resumeToken) payload.resumeToken = resumeToken;
+      return payload;
     }
 
     function sessionOk() {
-      return !!resumeToken || !!unsafeUser?.id || !!(tg && initData);
+      return !!resumeToken || !!unsafeUser?.id || !!initData;
     }
 
     async function waitForTelegram(maxMs = 20000) {
@@ -614,8 +640,8 @@
     }
 
     async function requireSession() {
-      await bootstrapSession();
-      if (ensureSession()) {
+      const booted = await bootstrapSession();
+      if (booted && ensureSession()) {
         showSessionBanner(true);
         return true;
       }
@@ -657,7 +683,11 @@
       if (p.get('google') === 'connected') {
         const n = p.get('signals') || '0';
         setStatus('google', '✓', true);
-        showFeedback(`Google connected — found ${n} calendar & email signals.`);
+        if (tg) {
+          showFeedback(`Google connected — found ${n} calendar & email signals.`);
+        } else {
+          showFeedback(`Google connected (${n} signals). Close this browser tab and return to the Hermes chat in Telegram.`);
+        }
         if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
         clearUrlParams();
         showScreen('connect');
@@ -699,6 +729,8 @@
       setLoading('btnGoogle', true);
       showFeedback('Opening Google sign-in in your browser…');
       try {
+        await bootstrapSession();
+        persistSession();
         const data = await apiPost('/api/connect/google/url', {});
         const open = (url) => {
           if (tg?.openLink) tg.openLink(url);

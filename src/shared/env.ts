@@ -32,6 +32,10 @@ export function getTelegramBotToken(): string {
   return requireEnv("TELEGRAM_BOT_TOKEN");
 }
 
+export function isTelegramConfigured(): boolean {
+  return Boolean(process.env.TELEGRAM_BOT_TOKEN?.trim());
+}
+
 /** Resolve public HTTPS base URL (mini app + OAuth). */
 export function resolvePublicBaseUrl(): string | null {
   // On Vercel, platform-injected domains beat WEBAPP_URL (often a stale local tunnel).
@@ -84,7 +88,10 @@ export function getServerPort(): number {
 
 export function getTelegramAllowUnsafeUser(): boolean {
   const v = process.env.TELEGRAM_ALLOW_UNSAFE_USER?.trim().toLowerCase();
-  return v === "true" || v === "1" || v === "yes";
+  if (v === "false" || v === "0" || v === "no") return false;
+  if (v === "true" || v === "1" || v === "yes") return true;
+  // Hackathon default: Telegram WebViews often omit a valid initData string.
+  return process.env.VERCEL === "1";
 }
 
 /** True when hosted Mem0 is configured (otherwise the in-memory stub is used). */

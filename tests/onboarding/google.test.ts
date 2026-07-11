@@ -28,6 +28,11 @@ test("googleAuthUrl includes redirect URI and traveller state", () => {
   assert.equal(parsed.searchParams.get("state"), "tg:99");
   assert.match(parsed.searchParams.get("scope") ?? "", /gmail\.readonly/);
 
+  const withResume = googleAuthUrl("tg:99", "resume-token-abc");
+  const resumeState = new URL(withResume!).searchParams.get("state");
+  assert.notEqual(resumeState, "tg:99");
+  assert.ok(resumeState && resumeState.length > 8);
+
   const setup = getGoogleSetupInfo();
   assert.equal(setup.configured, true);
   assert.equal(
