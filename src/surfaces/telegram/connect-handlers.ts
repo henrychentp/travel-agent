@@ -104,6 +104,9 @@ export async function handleConnectSources(
   json(res, 200, {
     connectors: CONNECTORS,
     googleConfigured: google.configured,
+    googleEnabled: google.enabled,
+    googleDisabledReason: google.disabledReason,
+    googleProductionUrl: google.productionUrl,
     googleRedirectUri: google.redirectUri,
     googleClientIdHint: google.clientIdHint,
     googleScopes: google.scopes,
@@ -347,7 +350,9 @@ export async function handleGoogleAuthUrl(
   if (!authUrl) {
     const setup = getGoogleSetupInfo();
     json(res, 503, {
-      error: "Google OAuth not configured",
+      error: setup.disabledReason ?? "Google OAuth not configured",
+      googleEnabled: setup.enabled,
+      googleProductionUrl: setup.productionUrl,
       redirectUri: setup.redirectUri,
     });
     return;
@@ -466,12 +471,16 @@ export async function handleConnectStatus(
   if (!user) return;
 
   const profile = await mem0.getProfile(telegramUserId(user));
+  const google = getGoogleSetupInfo();
   json(res, 200, {
     connectedSources: profile?.connectedSources ?? [],
     location: profile?.location ?? null,
     destinationCity: profile?.destinationCity ?? null,
-    googleConfigured: getGoogleEnv() !== null,
-    googleRedirectUri: getGoogleSetupInfo().redirectUri,
+    googleConfigured: google.configured,
+    googleEnabled: google.enabled,
+    googleDisabledReason: google.disabledReason,
+    googleProductionUrl: google.productionUrl,
+    googleRedirectUri: google.redirectUri,
   });
 }
 

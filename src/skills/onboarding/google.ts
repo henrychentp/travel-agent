@@ -1,5 +1,10 @@
 import type { ISODate, UserId } from "../../shared/schemas.js";
-import { resolvePublicBaseUrl } from "../../shared/env.js";
+import {
+  getCanonicalProductionUrl,
+  getGoogleOAuthBlockReason,
+  isGoogleOAuthAllowed,
+  resolvePublicBaseUrl,
+} from "../../shared/env.js";
 
 const tokenStore = new Map<UserId, { accessToken: string; refreshToken?: string; at: ISODate }>();
 
@@ -11,7 +16,7 @@ export function getGoogleEnv(): {
   const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
   const base = resolvePublicBaseUrl();
-  if (!clientId || !clientSecret || !base) return null;
+  if (!clientId || !clientSecret || !base || !isGoogleOAuthAllowed()) return null;
   return {
     clientId,
     clientSecret,
@@ -26,6 +31,9 @@ const SCOPES = [
 
 export function getGoogleSetupInfo(): {
   configured: boolean;
+  enabled: boolean;
+  disabledReason: string | null;
+  productionUrl: string | null;
   redirectUri: string | null;
   clientIdHint: string | null;
   scopes: string[];
@@ -34,6 +42,9 @@ export function getGoogleSetupInfo(): {
   const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
   return {
     configured: env !== null,
+    enabled: isGoogleOAuthAllowed(),
+    disabledReason: getGoogleOAuthBlockReason(),
+    productionUrl: getCanonicalProductionUrl(),
     redirectUri: env?.redirectUri ?? null,
     clientIdHint: clientId
       ? `${clientId.slice(0, 12)}…${clientId.slice(-20)}`

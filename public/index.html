@@ -130,6 +130,17 @@
       display: flex; align-items: center; justify-content: center; gap: 0.5rem;
     }
     .btn-google svg { width: 18px; height: 18px; }
+    .btn-google:disabled { opacity: 0.55; cursor: not-allowed; }
+    .google-hint {
+      font-size: 0.76rem;
+      color: var(--muted);
+      line-height: 1.4;
+      margin-top: 0.45rem;
+      padding: 0.55rem 0.65rem;
+      background: var(--bg-warm);
+      border-radius: 10px;
+    }
+    .google-hint.warn { color: #8a6d00; background: #fff8e6; }
 
     .expand-panel { display: none; padding: 0.75rem 0 0; }
     .expand-panel.open { display: block; }
@@ -315,6 +326,7 @@
           <span class="row-status" id="status-google"> </span>
         </div>
         <button class="btn btn-google btn-block" id="btnGoogle">Connect Google</button>
+        <div class="google-hint" id="googleHint" style="display:none"></div>
       </div>
 
       <div class="connect-card">
@@ -694,7 +706,7 @@
         return true;
       }
       if (p.get('google') === 'unconfigured') {
-        showFeedback('Google OAuth not configured on the server. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to Vercel env vars.', true);
+        showFeedback('Google OAuth is not available on this deploy. Use the production Hermes Mini App from @travel112bot.', true);
         clearUrlParams();
         showScreen('connect');
         return true;
@@ -723,8 +735,30 @@
       if (el) el.classList.toggle('loading', on);
     }
 
+    function setGoogleAvailability(data) {
+      const btn = document.getElementById('btnGoogle');
+      const hint = document.getElementById('googleHint');
+      const enabled = data.googleEnabled ?? data.googleConfigured;
+      if (enabled) {
+        btn.disabled = false;
+        hint.style.display = 'none';
+        return;
+      }
+      btn.disabled = true;
+      const prod = data.googleProductionUrl || 'https://hermes-travel-agent.vercel.app';
+      const reason = data.googleDisabledReason
+        || `Google connect is only on production. Use ${prod} from @travel112bot.`;
+      hint.textContent = reason;
+      hint.classList.add('warn');
+      hint.style.display = 'block';
+    }
+
     // Google — open OAuth in the system browser (Google blocks embedded WebViews)
     document.getElementById('btnGoogle').addEventListener('click', async () => {
+      if (document.getElementById('btnGoogle').disabled) {
+        showFeedback(document.getElementById('googleHint').textContent, true);
+        return;
+      }
       if (!(await requireSession())) return;
       setLoading('btnGoogle', true);
       showFeedback('Opening Google sign-in in your browser…');
@@ -1023,10 +1057,7 @@
           const gpsMeta = document.getElementById('gpsMeta');
           gpsMeta.textContent = `Near ${data.location.city} · ${data.location.lat.toFixed(4)}, ${data.location.lng.toFixed(4)}`;
         }
-        if (!data.googleConfigured) {
-          const uri = data.googleRedirectUri || `${window.location.origin}/api/connect/google/callback`;
-          showFeedback(`Google OAuth not configured on server. Set GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET in Vercel. Redirect URI: ${uri}`, true);
-        }
+        setGoogleAvailability(data);
       } catch (_) {}
     }
 

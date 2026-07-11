@@ -99,14 +99,57 @@ export function isMem0Configured(): boolean {
   return Boolean(process.env.MEM0_API_KEY?.trim());
 }
 
-export function isGoogleConfigured(): boolean {
-  try {
-    return !!(
-      process.env.GOOGLE_CLIENT_ID?.trim() &&
-      process.env.GOOGLE_CLIENT_SECRET?.trim() &&
-      resolvePublicBaseUrl()
-    );
-  } catch {
+/** Canonical production URL for teammate docs and OAuth (stable across preview deploys). */
+export function getCanonicalProductionUrl(): string | null {
+  const explicit = process.env.HERMES_PRODUCTION_URL?.trim();
+  if (explicit) return explicit.replace(/\/$/, "");
+
+  const vercelProd = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  if (vercelProd) return `https://${vercelProd.replace(/\/$/, "")}`;
+
+  return null;
+}
+
+/** True on Vercel production deploys (not preview/branch URLs). */
+export function isProductionDeployment(): boolean {
+  if (process.env.VERCEL === "1") {
+    return process.env.VERCEL_ENV === "production";
+  }
+  return true;
+}
+
+/**
+ * Google OAuth only runs on production — preview URLs are not registered in
+ * Google Cloud Console. Set HERMES_ALLOW_GOOGLE_OAUTH=true to override (local ngrok).
+ */
+export function isGoogleOAuthAllowed(): boolean {
+  if (
+    !process.env.GOOGLE_CLIENT_ID?.trim() ||
+    !process.env.GOOGLE_CLIENT_SECRET?.trim() ||
+    !resolvePublicBaseUrl()
+  ) {
     return false;
   }
+  if (process.env.HERMES_ALLOW_GOOGLE_OAUTH === "true") return true;
+  if (process.env.VERCEL === "1") return process.env.VERCEL_ENV === "production";
+  return true;
+}
+
+export function getGoogleOAuthBlockReason(): string | null {
+  if (
+    !process.env.GOOGLE_CLIENT_ID?.trim() ||
+    !process.env.GOOGLE_CLIENT_SECRET?.trim()
+  ) {
+    return "Google OAuth credentials are not set on the server.";
+  }
+  if (process.env.VERCEL === "1" && process.env.VERCEL_ENV !== "production") {
+    const prod =
+      getCanonicalProductionUrl() ?? "https://hermes-travel-agent.vercel.app";
+    return `Google connect is production-only. Open the Mini App from ${prod} (@travel112bot → Build taste profile). Preview deploys cannot use OAuth.`;
+  }
+  return null;
+}
+
+export function isGoogleConfigured(): boolean {
+  return isGoogleOAuthAllowed();
 }
