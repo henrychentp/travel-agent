@@ -174,20 +174,35 @@ function demoRequest(profile: TravellerProfile): TripRequest {
 }
 
 function formatItinerary(plan: TripPlan): string {
-  const days = plan.itinerary.map((day) => {
+  const anchorsByDay = new Map<string, string[]>();
+  for (const day of plan.itinerary) {
+    const date = day.date.slice(0, 10);
     const items = day.items.map((item) => {
       if (item.kind === "flight") return `• Flight: ${item.from} → ${item.to} (${item.depart})`;
       if (item.kind === "hotel") return `• Stay: ${item.name}`;
       return `• ${item.startAt ? `${item.startAt.slice(11, 16)} — ` : ""}${item.title}${item.location ? `, ${item.location}` : ""}`;
     });
-    return items.length ? `*${day.date}*\n${items.join("\n")}` : "";
-  }).filter(Boolean);
+    if (items.length) anchorsByDay.set(date, [...(anchorsByDay.get(date) ?? []), ...items]);
+  }
 
-  const demoFallback = [
-    `*${plan.request.startDate} — arrive gently*\n• Check in, settle in, and take a short neighbourhood orientation walk.\n• Keep dinner flexible near the hotel.`,
-    `*${plan.request.endDate} — one cultural anchor*\n• Choose one museum, landmark, or local food experience matched to your saved taste.\n• Leave time for a relaxed coffee and an unhurried return.`,
-  ];
-  const schedule = days.length ? days : demoFallback;
+  const start = new Date(`${plan.request.startDate}T12:00:00Z`);
+  const end = new Date(`${plan.request.endDate}T12:00:00Z`);
+  const dates: string[] = [];
+  for (const cursor = new Date(start); cursor <= end && dates.length < 7; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+    dates.push(cursor.toISOString().slice(0, 10));
+  }
+  if (!dates.length) dates.push(plan.request.startDate);
+
+  const schedule = dates.map((date, index) => {
+    const anchors = anchorsByDay.get(date) ?? [];
+    const outline = index === 0
+      ? ["• 15:30 — Settle in, then take a short, easy orientation walk near the hotel.", "• 17:30 — Pause for coffee or an aperitif before the evening."]
+      : index === dates.length - 1
+        ? ["• 10:00 — Unhurried coffee and one final neighbourhood stop.", "• 13:00 — Return to the hotel, collect luggage, and leave a generous transfer buffer."]
+        : ["• 10:00 — Choose one culture-led anchor matched to your saved taste.", "• 13:00 — Relaxed local lunch and a seated reset.", "• 15:00 — Keep the afternoon open for a neighbourhood wander or second coffee stop."];
+    const label = index === 0 ? "arrive gently" : index === dates.length - 1 ? "leave unhurried" : "culture and neighbourhood time";
+    return `*${date} — ${label}*\n${[...anchors, ...outline].join("\n")}`;
+  });
   return `*Your demo itinerary — fictional and unbooked*\n${plan.request.destination} · ${plan.request.startDate} to ${plan.request.endDate}\n\n${schedule.join("\n\n")}\n\nProtected flight, hotel, and dinner anchors are preserved. No booking has been made.`;
 }
 
