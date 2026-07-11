@@ -1,60 +1,391 @@
 /**
  * Shared JSON contracts for the travel agent.
  *
- * These are the structured types passed between Hermes (orchestrator), the three
- * specialist skills, and the two data stores. One `userId`, one `tripId`.
- *
+ * One `userId`, one `tripId`. Two stores:
  *   - Mem0        stores TASTE + durable preferences  -> TravellerProfile
  *   - Trip State  stores FACTS: bookings + itinerary  -> TripState / TripPlan
+ *
+ * The TravellerProfile below is a direct encoding of
+ * docs/traveller-taste-profile-checklist.md. It follows the checklist's
+ * modeling principles:
+ *   - hard constraints are separated from soft preferences,
+ *   - deal-breakers are strict exclusion rules,
+ *   - per-category confidence + last-confirmed timestamps distinguish
+ *     stated vs. inferred data,
+ *   - passively-observed behaviour is kept as an evidence log.
  */
 
 export type UserId = string;
 export type TripId = string;
-export type ISODate = string; // e.g. "2026-08-14" or full ISO timestamp
+export type ISODate = string; // "2026-08-14" or full ISO timestamp
+export type Scale1to5 = 1 | 2 | 3 | 4 | 5;
 
-/* ------------------------------------------------------------------ *
- * 1 · Onboarding & Memory  ->  TravellerProfile
- * ------------------------------------------------------------------ */
+/** Where a piece of profile data came from. */
+export type ProvenanceSource = "stated" | "revealed" | "inferred";
 
-/** Raw answers collected during onboarding, before they become durable taste. */
-export interface OnboardingAnswers {
+/* ================================================================== *
+ * TRAVELLER PROFILE  (durable taste, persisted to Mem0)
+ * Categories mirror docs/traveller-taste-profile-checklist.md.
+ * Every field is optional; a profile is built up incrementally.
+ * ================================================================== */
+
+/** Identity & context. */
+export interface IdentityContext {
   homeCity?: string;
-  budgetTier?: "shoestring" | "comfort" | "premium" | "luxury";
-  pace?: "relaxed" | "balanced" | "packed";
-  interests?: string[]; // e.g. ["food", "hiking", "museums"]
-  dietary?: string[]; // e.g. ["vegetarian", "no-pork"]
-  mobility?: string[]; // accessibility constraints
-  seatPreference?: "window" | "aisle" | "no-preference";
-  freeText?: string; // anything the traveller volunteers
+  departureAirports?: string[]; // IATA codes, e.g. ["SIN"]
+  citizenships?: string[]; // country codes
+  residence?: string;
+  languages?: { language: string; proficiency: Scale1to5 }[];
+  annualTripFrequency?: number;
+  typicalTripLengthDays?: number;
+  lifeStage?:
+    | "single"
+    | "couple"
+    | "family-young-kids"
+    | "family-teens"
+    | "empty-nester"
+    | "retired"
+    | "other";
+  dateFlexibility?: "fixed" | "somewhat-flexible" | "very-flexible";
+  homeTimeZone?: string; // IANA tz
+  devices?: string[];
 }
 
-/** Durable taste + constraints. Persisted to Mem0. The memory that survives trips. */
+/** Motivations & trip "jobs". */
+export interface Motivations {
+  primary?: string[]; // e.g. ["food", "culture", "relaxation"]
+  desiredEmotion?: string; // free-text
+  topJobs?: string[]; // the 3 outcomes a trip must deliver
+  explorationVsReturn?: Scale1to5; // 1 = return favourites, 5 = always explore
+  learningImportance?: Scale1to5;
+  connectionFocus?: Scale1to5;
+  recoveryVsProductivity?: Scale1to5; // 1 = recovery, 5 = productivity
+  statusImportance?: Scale1to5;
+  spiritual?: { enabled: boolean; notes?: string };
+}
+
+/** Pace, energy & structure. */
+export interface PacePreferences {
+  dailyActivityDensity?: "light" | "moderate" | "full";
+  structureVsSpontaneity?: Scale1to5; // 1 = spontaneous, 5 = tightly planned
+  energyPeak?: "morning" | "evening" | "either";
+  earlyDepartureTolerance?: Scale1to5;
+  walkingTolerance?: "low" | "medium" | "high";
+  dailyDowntime?: { required: boolean; minutes?: number };
+  lastMinuteChangeComfort?: Scale1to5;
+  tripRhythm?: "slow-build" | "steady" | "peak-intensity";
+}
+
+/** Accommodation taste. */
+export interface AccommodationTaste {
+  types?: string[]; // ["boutique-hotel", "resort", "apartment", ...]
+  vibe?: string[]; // tagged descriptors
+  roomSize?: "cozy" | "comfortable" | "spacious" | "suite";
+  bed?: string;
+  viewImportance?: Scale1to5;
+  bathroom?: string[];
+  amenityMustHaves?: string[];
+  dealBreakers?: string[]; // strict exclusions for lodging
+  chainsVsIndependent?: "chains" | "independents" | "mix";
+  characterVsModern?: Scale1to5; // 1 = character/historic, 5 = modern/pristine
+}
+
+export type Cabin = "economy" | "premium-economy" | "business" | "first";
+
+/** Transport & flight preferences. */
+export interface TransportPreferences {
+  cabinShortHaul?: Cabin;
+  cabinLongHaul?: Cabin;
+  seat?: "window" | "aisle" | "no-preference";
+  departureWindows?: string[]; // ["early-morning","midday","evening",...]
+  airlineLoyalties?: string[];
+  groundTransport?: string[]; // ["private-transfer","rental","rail","rideshare"]
+  rentalCar?: string;
+  connectionTolerance?: Scale1to5; // 1 = direct only, 5 = happy to connect
+  railVsFlight?: "rail" | "flight" | "either";
+  transitNeeds?: string; // mobility/comfort requirements
+}
+
+/** Food & drink (preferences; safety restrictions live in HardConstraints). */
+export interface FoodPreferences {
+  cuisineLoves?: string[];
+  cuisineAvoids?: string[];
+  adventurousness?: Scale1to5;
+  diningStyle?: { fine?: number; casual?: number; informal?: number }; // % split
+  alcohol?: string;
+  mealTimingImportance?: Scale1to5;
+  foodExperiences?: boolean; // classes, tastings, markets
+  dealBreakers?: string[];
+}
+
+/** Activities & interests. */
+export interface ActivityPreferences {
+  categories?: string[]; // base content palette
+  depthVsBreadth?: "depth" | "breadth" | "mix";
+  physicalLevel?: Scale1to5;
+  nicheInterests?: string[];
+  shopping?: { importance: Scale1to5; style?: string };
+  nightlife?: "none" | "low" | "moderate" | "high";
+  wellness?: string[]; // spa, yoga, retreats
+  bucketList?: string[];
+}
+
+/** Social context. */
+export interface SocialContext {
+  companions?: string[]; // ["solo","partner","kids","friends","extended-family"]
+  children?: { age: number; needs?: string }[];
+  meetOthers?: Scale1to5;
+  privacyVsSociability?: Scale1to5; // 1 = private/secluded, 5 = social scene
+  pets?: string;
+  companionAccessibility?: string;
+  decisionRole?: "sole" | "shared" | "delegated";
+}
+
+/** Budget & value. */
+export interface BudgetValue {
+  typicalRange?: { min: number; max: number; currency: string };
+  flexibility?: Scale1to5;
+  splurgeCategories?: string[];
+  saveCategories?: string[];
+  priceSensitivity?: Scale1to5;
+  dealsVsSimplicity?: "deals" | "simplicity" | "mix";
+  offSeasonOpen?: boolean;
+}
+
+/** Comfort, risk & novelty tolerance. */
+export interface ComfortRiskTolerance {
+  safetyPriority?: Scale1to5;
+  comfortVsNovelty?: Scale1to5; // 1 = comfort, 5 = novelty
+  frictionTolerance?: Scale1to5;
+  offBeatenPath?: Scale1to5;
+  activityRiskTolerance?: Scale1to5;
+  languageBarrierComfort?: Scale1to5;
+  disruptionResilience?: Scale1to5;
+}
+
+/** Sensory & environmental. */
+export interface SensoryEnvironment {
+  climates?: string[];
+  heatTolerance?: Scale1to5;
+  crowdTolerance?: Scale1to5;
+  noiseSensitivity?: Scale1to5;
+  cleanlinessThreshold?: Scale1to5;
+  darknessNeed?: boolean;
+  airQualitySensitivity?: { sensitive: boolean; notes?: string };
+}
+
+/** Brand, loyalty & ethics. */
+export interface BrandLoyaltyEthics {
+  hotelBrands?: string[];
+  programs?: { program: string; status?: string }[];
+  localVsGlobal?: "local" | "global" | "mix";
+  sustainabilityImportance?: Scale1to5;
+  payMoreForGreen?: Scale1to5;
+  ethicalBoundaries?: string[];
+}
+
+/**
+ * Hard constraints — treated as STRICT feasibility gates by the planner,
+ * never as soft preferences. A destination/plan violating any of these is
+ * rejected, not down-ranked.
+ */
+export interface HardConstraints {
+  medicalConditions?: string[];
+  medicationNeeds?: string;
+  mobilityLimitations?: string[];
+  religiousObservances?: string[];
+  dietaryRestrictions?: string[]; // allergies / non-negotiable rules
+  legalVisaExclusions?: string[]; // countries that cannot be visited
+  insuranceConstraints?: string;
+  blackoutDates?: { start: ISODate; end: ISODate }[];
+}
+
+/** Communication & decision style. */
+export interface CommunicationStyle {
+  channels?: string[]; // ["push","email","sms","whatsapp"]
+  detailVsSummary?: Scale1to5; // 1 = summary, 5 = detailed
+  optionCount?: "one" | "few" | "many";
+  strictVsExploratory?: "strict" | "exploratory";
+  /** Which changes may be auto-applied vs. always need human approval. */
+  approvalThresholds?: string;
+  decisionSpeed?: Scale1to5;
+  openToExperiments?: boolean;
+}
+
+/** Deal-breakers & past regrets — strong negative preferences. */
+export interface DealBreakersRegrets {
+  neverAgain?: string[];
+  regrets?: string[];
+  favoriteTrips?: string[];
+  biggestRuiner?: string;
+  expectedServiceLevel?: "self-serve" | "responsive" | "concierge" | "white-glove";
+}
+
+/** A passively-observed signal (revealed behaviour), per the checklist. */
+export interface EvidenceEntry {
+  at: ISODate;
+  signal: string; // e.g. "cabin-accepted", "activity-skipped", "post-trip-rating"
+  detail: string;
+  tripId?: TripId;
+}
+
+/** Category keys used for confidence + last-confirmed metadata. */
+export type ProfileCategory =
+  | "identity"
+  | "motivations"
+  | "pace"
+  | "accommodation"
+  | "transport"
+  | "food"
+  | "activities"
+  | "social"
+  | "budget"
+  | "comfortRisk"
+  | "sensory"
+  | "brandLoyalty"
+  | "constraints"
+  | "communication"
+  | "dealBreakers";
+
+/**
+ * The durable traveller profile. Persisted to Mem0, updated over time,
+ * and independent of any single trip.
+ */
 export interface TravellerProfile {
   userId: UserId;
-  homeCity?: string;
-  budgetTier: NonNullable<OnboardingAnswers["budgetTier"]>;
-  pace: NonNullable<OnboardingAnswers["pace"]>;
-  interests: string[];
-  dietary: string[];
-  mobility: string[];
-  seatPreference: NonNullable<OnboardingAnswers["seatPreference"]>;
-  /** Free-form durable notes learned over time ("hates early flights"). */
+
+  identity: IdentityContext;
+  motivations: Motivations;
+  pace: PacePreferences;
+  accommodation: AccommodationTaste;
+  transport: TransportPreferences;
+  food: FoodPreferences;
+  activities: ActivityPreferences;
+  social: SocialContext;
+  budget: BudgetValue;
+  comfortRisk: ComfortRiskTolerance;
+  sensory: SensoryEnvironment;
+  brandLoyalty: BrandLoyaltyEthics;
+  constraints: HardConstraints;
+  communication: CommunicationStyle;
+  dealBreakers: DealBreakersRegrets;
+
+  /** Free-text durable memories, before they are normalized into tags. */
   notes: string[];
+  /** Passively-observed behaviour (see checklist "signals over time"). */
+  evidence: EvidenceEntry[];
+
+  /** 0..1 confidence per category — how sure we are of this data. */
+  confidence: Partial<Record<ProfileCategory, number>>;
+  /** When each category was last explicitly confirmed by the traveller. */
+  lastConfirmed: Partial<Record<ProfileCategory, ISODate>>;
   updatedAt: ISODate;
 }
 
-/* ------------------------------------------------------------------ *
- * 2 · Whole-Trip Planner  ->  TripPlan
- * ------------------------------------------------------------------ */
+/** Ordered list of profile categories (for iteration/merge). */
+export const PROFILE_CATEGORIES: ProfileCategory[] = [
+  "identity",
+  "motivations",
+  "pace",
+  "accommodation",
+  "transport",
+  "food",
+  "activities",
+  "social",
+  "budget",
+  "comfortRisk",
+  "sensory",
+  "brandLoyalty",
+  "constraints",
+  "communication",
+  "dealBreakers",
+];
 
-/** A request to plan a complete trip. */
+/** An empty, fully-initialised profile ready to be populated. */
+export function emptyProfile(userId: UserId, at: ISODate): TravellerProfile {
+  return {
+    userId,
+    identity: {},
+    motivations: {},
+    pace: {},
+    accommodation: {},
+    transport: {},
+    food: {},
+    activities: {},
+    social: {},
+    budget: {},
+    comfortRisk: {},
+    sensory: {},
+    brandLoyalty: {},
+    constraints: {},
+    communication: {},
+    dealBreakers: {},
+    notes: [],
+    evidence: [],
+    confidence: {},
+    lastConfirmed: {},
+    updatedAt: at,
+  };
+}
+
+/**
+ * Minimum-viable-profile categories (from the checklist): the smallest set
+ * that still lets the planner produce a good trip without long onboarding.
+ */
+export const MINIMUM_VIABLE_CATEGORIES: ProfileCategory[] = [
+  "identity",
+  "motivations",
+  "pace",
+  "accommodation",
+  "transport",
+  "food",
+  "activities",
+  "budget",
+  "comfortRisk",
+  "sensory",
+  "constraints",
+  "communication",
+];
+
+/* ================================================================== *
+ * Onboarding input
+ * ================================================================== */
+
+/**
+ * Raw onboarding answers. Every category is optional and partial; onboarding
+ * merges what is provided into the durable profile.
+ */
+export interface OnboardingAnswers {
+  identity?: IdentityContext;
+  motivations?: Motivations;
+  pace?: PacePreferences;
+  accommodation?: AccommodationTaste;
+  transport?: TransportPreferences;
+  food?: FoodPreferences;
+  activities?: ActivityPreferences;
+  social?: SocialContext;
+  budget?: BudgetValue;
+  comfortRisk?: ComfortRiskTolerance;
+  sensory?: SensoryEnvironment;
+  brandLoyalty?: BrandLoyaltyEthics;
+  constraints?: HardConstraints;
+  communication?: CommunicationStyle;
+  dealBreakers?: DealBreakersRegrets;
+  /** Anything the traveller volunteers as free text. */
+  notes?: string[];
+}
+
+/* ================================================================== *
+ * WHOLE-TRIP PLANNER  ->  TripPlan
+ * ================================================================== */
+
 export interface TripRequest {
   destination: string;
   startDate: ISODate;
   endDate: ISODate;
   travellers: number;
-  budget?: number; // total, in the traveller's home currency
-  mustHaves?: string[]; // hard requirements for this specific trip
+  budget?: number;
+  mustHaves?: string[];
 }
 
 export interface FlightBooking {
@@ -64,6 +395,7 @@ export interface FlightBooking {
   depart: ISODate;
   arrive: ISODate;
   carrier?: string;
+  cabin?: Cabin;
   price?: number;
   ref?: string;
 }
@@ -89,13 +421,11 @@ export interface Activity {
 
 export type Booking = FlightBooking | HotelBooking | Activity;
 
-/** One day of the itinerary. */
 export interface ItineraryDay {
   date: ISODate;
   items: Booking[];
 }
 
-/** The feasible itinerary produced by the planner. */
 export interface TripPlan {
   tripId: TripId;
   userId: UserId;
@@ -105,49 +435,40 @@ export interface TripPlan {
   createdAt: ISODate;
 }
 
-/* ------------------------------------------------------------------ *
- * 3 · In-Trip Concierge  ->  TripPatch
- * ------------------------------------------------------------------ */
+/* ================================================================== *
+ * IN-TRIP CONCIERGE  ->  TripPatch
+ * ================================================================== */
 
-/** A spontaneous, in-trip need ("flight cancelled", "want a dinner tonight"). */
 export interface LiveNeedRequest {
   text: string;
-  at?: ISODate; // when the need arose
-  location?: string; // where the traveller currently is
+  at?: ISODate;
+  location?: string;
 }
 
-/** A single proposed change to the live trip. */
 export interface PatchOp {
   op: "add" | "remove" | "replace";
-  /** Which day of the itinerary this touches. */
   date: ISODate;
   before?: Booking;
   after?: Booking;
   reason: string;
 }
 
-/**
- * A proposed, safe change to an in-progress trip. Major changes require
- * human approval before they are committed to Trip State (see diagram).
- */
 export interface TripPatch {
   tripId: TripId;
   userId: UserId;
   ops: PatchOp[];
-  /** True when the change is large enough to need explicit human sign-off. */
   requiresApproval: boolean;
   rationale: string;
   proposedAt: ISODate;
 }
 
-/* ------------------------------------------------------------------ *
+/* ================================================================== *
  * Trip State (persisted facts + version history)
- * ------------------------------------------------------------------ */
+ * ================================================================== */
 
 export interface TripState {
   tripId: TripId;
   userId: UserId;
   current: TripPlan;
-  /** Prior versions, newest last. Enables rollback and audit. */
   history: TripPlan[];
 }

@@ -28,6 +28,29 @@ Traveller ─▶ Hermes (manager) ─▶ ┌ 1 · Onboarding & Memory  ─▶ Me
 
 All types live in [`src/shared/schemas.ts`](src/shared/schemas.ts).
 
+## Traveller taste profile (the planner's foundation)
+
+The whole planner is driven by a durable `TravellerProfile` — a direct encoding
+of [`docs/traveller-taste-profile-checklist.md`](docs/traveller-taste-profile-checklist.md).
+It spans 15 categories (identity, motivations, pace, accommodation, transport,
+food, activities, social, budget, comfort/risk, sensory, brand/loyalty, hard
+constraints, communication, deal-breakers) and follows the checklist's modeling
+principles:
+
+- **Hard constraints gate feasibility, soft preferences rank.** The planner
+  *rejects* a trip that violates `constraints` (visa exclusions, blackout dates,
+  medical/mobility/religious) via `checkHardConstraints`; everything else only
+  down-ranks options.
+- **Stated vs. inferred.** Each category carries a `confidence` score and a
+  `lastConfirmed` timestamp, so the agent knows what the traveller actually said
+  vs. what was guessed.
+- **Revealed behaviour.** An `evidence[]` log captures passive signals over time
+  (accepted/rejected cabins, skipped activities, actual spend, post-trip
+  ratings) via `mem0.recordEvidence`.
+
+Onboarding fills the profile incrementally; `MINIMUM_VIABLE_CATEGORIES` marks the
+smallest set needed to plan a good first trip.
+
 ## Repository layout
 
 ```
