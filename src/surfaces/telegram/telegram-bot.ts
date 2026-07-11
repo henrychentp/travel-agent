@@ -180,9 +180,15 @@ function formatItinerary(plan: TripPlan): string {
       if (item.kind === "hotel") return `• Stay: ${item.name}`;
       return `• ${item.startAt ? `${item.startAt.slice(11, 16)} — ` : ""}${item.title}${item.location ? `, ${item.location}` : ""}`;
     });
-    return `*${day.date}*\n${items.join("\n")}`;
-  });
-  return `*Your demo itinerary — fictional and unbooked*\n${plan.request.destination} · ${plan.request.startDate} to ${plan.request.endDate}\n\n${days.join("\n\n")}\n\nProtected flight, hotel, and dinner anchors are preserved. No booking has been made.`;
+    return items.length ? `*${day.date}*\n${items.join("\n")}` : "";
+  }).filter(Boolean);
+
+  const demoFallback = [
+    `*${plan.request.startDate} — arrive gently*\n• Check in, settle in, and take a short neighbourhood orientation walk.\n• Keep dinner flexible near the hotel.`,
+    `*${plan.request.endDate} — one cultural anchor*\n• Choose one museum, landmark, or local food experience matched to your saved taste.\n• Leave time for a relaxed coffee and an unhurried return.`,
+  ];
+  const schedule = days.length ? days : demoFallback;
+  return `*Your demo itinerary — fictional and unbooked*\n${plan.request.destination} · ${plan.request.startDate} to ${plan.request.endDate}\n\n${schedule.join("\n\n")}\n\nProtected flight, hotel, and dinner anchors are preserved. No booking has been made.`;
 }
 
 async function oneMinuteBriefing(plan: TripPlan, profile: TravellerProfile): Promise<string> {
