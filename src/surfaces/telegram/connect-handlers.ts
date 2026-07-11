@@ -26,7 +26,7 @@ import {
 } from "./init-data.js";
 import { getTelegramBotToken, getWebAppUrl, isMem0Configured, isTelegramConfigured } from "../../shared/env.js";
 import type { UserId } from "../../shared/schemas.js";
-import { tgApi } from "./telegram-bot.js";
+import { runOnboardingDemo, tgApi } from "./telegram-bot.js";
 
 async function readBody(req: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
@@ -192,7 +192,7 @@ export async function handleConnectCities(
   json(res, 200, { cities: DESTINATION_CITIES });
 }
 
-/** Save trip context to Mem0; Hermes owns the subsequent demo delivery. */
+/** Save trip context, then immediately deliver the completed demo in Telegram. */
 export async function handleOnboardingComplete(
   req: IncomingMessage,
   res: ServerResponse,
@@ -234,10 +234,10 @@ export async function handleOnboardingComplete(
       );
     }
 
+    await runOnboardingDemo(user.id, userId);
     json(res, 200, {
       ok: true,
-      demoStarted: false,
-      nextAction: "Send demo in Hermes chat to build and deliver your itinerary.",
+      demoStarted: true,
       mem0Configured: isMem0Configured(),
     });
   } catch (err) {
