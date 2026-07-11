@@ -56,16 +56,34 @@ smallest set needed to plan a good first trip.
 ```
 travel-agent/
 ├── src/
-│   ├── shared/            # schemas · mem0-client · trip-store  (the JSON contracts + stores)
+│   ├── shared/            # schemas · mem0-client · trip-store  (JSON contracts + stores)
+│   ├── core/             # THE DIRECTOR — one backbone for plan + concierge
+│   │   ├── director.ts       plan(profile, state, intent) -> TripPatch
+│   │   ├── apply-patch.ts     TripPatch + TripPlan -> next version
+│   │   ├── constraints.ts     hard-constraint feasibility gate
+│   │   ├── revision-loop.ts   Agent B core: density/feasibility filtering
+│   │   └── workers/           scout (A) · logistics (B) · culture (C)
 │   ├── skills/
 │   │   ├── onboarding/    # onboardUser  -> TravellerProfile   (Person 1)
-│   │   ├── trip-planner/  # planTrip     -> TripPlan           (Person 2)
-│   │   └── concierge/     # handleLiveNeed -> TripPatch        (Person 3)
+│   │   ├── trip-planner/  # planTrip  -> TripPlan   (thin adapter: full-plan intent)
+│   │   └── concierge/     # handleLiveNeed -> TripPatch (thin adapter: live-need intent)
 │   ├── orchestrator/      # Hermes — routes intent + coordinates skills
 │   └── tools/             # Live Tools: flights · hotels · maps · weather · events
 └── tests/
     └── end-to-end/        # onboard -> plan -> disrupt -> concierge replans
 ```
+
+### One backbone, two scopes
+
+Planner (skill 2) and concierge (skill 3) share the **Director**. Both produce a
+`TripPatch`; the only difference is scope:
+
+- **Full plan** = a patch from an *empty* itinerary (`{kind: "full-plan"}`).
+- **Live need** = a patch over an *existing* itinerary (`{kind: "live-need"}`).
+
+The Director runs the same pipeline either way: **Scout → Logistics revision loop
+→ Culture**, gated by `checkHardConstraints`. See
+[`docs/workstreams.md`](docs/workstreams.md) for how the build is divided.
 
 ## Getting started
 
