@@ -563,20 +563,27 @@
       return !!resumeToken || !!unsafeUser?.id || !!(tg && initData);
     }
 
-    async function waitForTelegram(maxMs = 15000) {
+    async function waitForTelegram(maxMs = 20000) {
       restoreSession();
       if (captureFromTelegram() || sessionOk()) return true;
 
       return new Promise((resolve) => {
-        const t0 = Date.now();
+        const deadline = Date.now() + maxMs;
+        let settled = false;
+        const finish = (ok) => {
+          if (settled) return;
+          settled = true;
+          clearInterval(interval);
+          resolve(ok);
+        };
         const tick = () => {
           restoreSession();
           if (captureFromTelegram() || sessionOk()) {
-            resolve(true);
+            finish(true);
             return true;
           }
-          if (Date.now() - t0 >= maxMs) {
-            resolve(sessionOk());
+          if (Date.now() >= deadline) {
+            finish(sessionOk());
             return true;
           }
           return false;
@@ -584,12 +591,11 @@
 
         if (tick()) return;
 
-        const interval = setInterval(() => {
-          if (tick()) clearInterval(interval);
-        }, 120);
-
+        const interval = setInterval(tick, 100);
+        if (tg?.ready) tg.ready(() => tick());
         if (tg?.onEvent) {
           tg.onEvent('viewportChanged', () => tick());
+          tg.onEvent('themeChanged', () => tick());
         }
       });
     }
@@ -711,18 +717,21 @@
     let saveCityTimer = null;
     let savingCity = false;
 
-    async function persistDestination(city) {
+    async function persistDestination(city, { force = false } = {}) {
       const value = city.trim();
-      if (value.length < 2 || value === lastSavedCity || savingCity) return;
-      if (!(await requireSession())) return;
+      if (value.length < 2) return false;
+      if (!force && (value === lastSavedCity || savingCity)) return false;
+      if (!(await requireSession())) return false;
       savingCity = true;
       try {
         const data = await apiPost('/api/connect/destination', { city: value });
         lastSavedCity = data.city || value;
         setStatus('destination', lastSavedCity, true);
         if (tg?.HapticFeedback) tg.HapticFeedback.selectionChanged();
+        return true;
       } catch (e) {
         showFeedback(e.message, true);
+        return false;
       } finally {
         savingCity = false;
       }
@@ -740,37 +749,52 @@
     citySearchEl.addEventListener('change', () => persistDestination(citySearchEl.value));
     citySearchEl.addEventListener('blur', () => persistDestination(citySearchEl.value));
 
-    // Current location (GPS)
-    document.getElementById('btnLocation').addEventListener('click', async () => {
-      if (!(await requireSession())) return;
-      if (!navigator.geolocation) { showFeedback('Location not supported on this device.', true); return; }
+    function requestGeoPosition() {
+      return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+          reject(new Error('Location not supported on this device.'));
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(resolve, (err) => {
+          if (err?.code === 1) {
+            reject(new Error('Enable location for Telegram in system Settings, then try again.'));
+            return;
+          }
+          reject(new Error('Could not get your location. Try again in a moment.'));
+        }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+      });
+    }
+
+    async function saveCurrentLocation() {
       const btn = document.getElementById('btnLocation');
       btn.classList.add('loading');
       showFeedback('Getting your location…');
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          try {
-            const data = await apiPost('/api/connect/location', {
-              lat: pos.coords.latitude,
-              lng: pos.coords.longitude,
-            });
-            const gpsMeta = document.getElementById('gpsMeta');
-            if (data.lat != null && data.lng != null) {
-              gpsMeta.textContent = data.city
-                ? `Near ${data.city} · ${data.lat.toFixed(4)}, ${data.lng.toFixed(4)}`
-                : `${data.lat.toFixed(4)}, ${data.lng.toFixed(4)}`;
-            }
-            if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-          } catch (e) {
-            showFeedback(e.message, true);
-          } finally { btn.classList.remove('loading'); }
-        },
-        () => {
-          showFeedback('Enable location in Settings, then try again.', true);
-          btn.classList.remove('loading');
-        },
-        { enableHighAccuracy: true, timeout: 12000 }
-      );
+      try {
+        const pos = await requestGeoPosition();
+        const data = await apiPost('/api/connect/location', {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        });
+        const gpsMeta = document.getElementById('gpsMeta');
+        if (data.lat != null && data.lng != null) {
+          gpsMeta.textContent = data.city
+            ? `Near ${data.city} · ${data.lat.toFixed(4)}, ${data.lng.toFixed(4)}`
+            : `${data.lat.toFixed(4)}, ${data.lng.toFixed(4)}`;
+          setStatus('destination', data.city || 'Location saved', true);
+        }
+        showFeedback(data.message || 'Location saved.');
+        if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+      } catch (e) {
+        showFeedback(e.message, true);
+      } finally {
+        btn.classList.remove('loading');
+      }
+    }
+
+    // Current location (GPS)
+    document.getElementById('btnLocation').addEventListener('click', async () => {
+      if (!(await requireSession())) return;
+      await saveCurrentLocation();
     });
 
     function showTripScreen() {
@@ -892,15 +916,17 @@
       try {
         const data = await apiPost('/api/onboarding/swipes', { swipes });
         st.textContent = data.mem0Saved
-          ? 'All set — your taste profile is saved.'
-          : 'Profile saved for this session.';
+          ? 'Taste profile saved — Hermes is building your personalised demo in chat…'
+          : 'Profile saved for this session — Hermes is building your personalised demo in chat…';
         renderSavedChips(data.saved, data.mem0Saved);
         if (data.recap) {
           recapEl.textContent = data.recap;
           recapEl.style.display = 'block';
         }
-        closeBtn.style.display = 'block';
         if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+        await apiPost('/api/onboarding/complete', { tripContext });
+        st.textContent = 'Done — your demo itinerary is being sent in the Hermes chat.';
+        closeBtn.style.display = 'block';
       } catch (e) {
         st.textContent = e.message || 'Could not save. Try again.';
         retryBtn.style.display = 'block';
@@ -910,32 +936,34 @@
     document.getElementById('retryBtn').addEventListener('click', () => finish());
 
     document.getElementById('closeBtn').addEventListener('click', () => {
-      // Returning to chat is the explicit handoff that starts research, itinerary, PDF, and voice.
-      if (tg?.sendData) {
-        const payload = { type: 'onboarding-complete' };
-        if (tripContext) Object.assign(payload, tripContext);
-        tg.sendData(JSON.stringify(payload));
-      }
+      // The profile is saved at this point. The traveller explicitly starts
+      // planning from chat with the `demo` command.
       if (tg) tg.close();
     });
     document.getElementById('saveTripBtn').addEventListener('click', async () => {
-      if (!(await requireSession())) return;
-      const city = document.getElementById('tripCity').value.trim();
-      const start = document.getElementById('tripStart').value;
-      const end = document.getElementById('tripEnd').value;
-      const travellers = document.getElementById('tripTravellers').value;
-      if (!city || !start || !end || end < start) {
-        toast('Add a destination and valid travel dates.');
-        return;
+      setLoading('saveTripBtn', true);
+      try {
+        if (!(await requireSession())) return;
+        const city = document.getElementById('tripCity').value.trim();
+        const start = document.getElementById('tripStart').value;
+        const end = document.getElementById('tripEnd').value;
+        const travellers = document.getElementById('tripTravellers').value;
+        if (!city || !start || !end || end < start) {
+          toast('Add a destination and valid travel dates.');
+          return;
+        }
+        await persistDestination(city, { force: true });
+        tripContext = {
+          city,
+          location: document.getElementById('citySearch').value.trim() || lastSavedCity || city,
+          startDate: start,
+          endDate: end,
+          travellers: Number(travellers),
+        };
+        showScreen('intro');
+      } finally {
+        setLoading('saveTripBtn', false);
       }
-      tripContext = {
-        city,
-        location: document.getElementById('citySearch').value.trim() || lastSavedCity || city,
-        startDate: start,
-        endDate: end,
-        travellers: Number(travellers),
-      };
-      showScreen('intro');
     });
 
     document.getElementById('btnPass').addEventListener('click', () => swipe('left'));

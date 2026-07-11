@@ -24,6 +24,7 @@ import {
 } from "./init-data.js";
 import { getTelegramBotToken, getWebAppUrl, isMem0Configured } from "../../shared/env.js";
 import type { UserId } from "../../shared/schemas.js";
+import { runOnboardingDemo } from "./telegram-bot.js";
 
 async function readBody(req: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
@@ -187,6 +188,59 @@ export async function handleConnectCities(
   res: ServerResponse,
 ) {
   json(res, 200, { cities: DESTINATION_CITIES });
+}
+
+/** Save trip context to Mem0 and kick off the Telegram demo itinerary. */
+export async function handleOnboardingComplete(
+  req: IncomingMessage,
+  res: ServerResponse,
+  mem0: Mem0Client,
+) {
+  const raw = await readBody(req);
+  const { initData, unsafeUser, resumeToken, tripContext } = JSON.parse(raw) as {
+    initData: string;
+    unsafeUser?: TelegramWebAppUser;
+    resumeToken?: string;
+    tripContext?: {
+      city?: string;
+      location?: string;
+      startDate?: string;
+      endDate?: string;
+      travellers?: number;
+    } | null;
+  };
+
+  const user = requireUser(initData, unsafeUser, res, resumeToken);
+  if (!user) return;
+
+  const userId = telegramUserId(user);
+  try {
+    if (
+      tripContext?.city &&
+      tripContext.startDate &&
+      tripContext.endDate
+    ) {
+      await mem0.remember(
+        userId,
+        `trip-context:${JSON.stringify({
+          city: tripContext.city,
+          location: tripContext.location ?? tripContext.city,
+          startDate: tripContext.startDate,
+          endDate: tripContext.endDate,
+          travellers: tripContext.travellers ?? 1,
+        })}`,
+      );
+    }
+
+    const chatId = user.id;
+    await runOnboardingDemo(chatId, userId);
+    json(res, 200, { ok: true, demoStarted: true, mem0Configured: isMem0Configured() });
+  } catch (err) {
+    json(res, 502, {
+      error: "Could not start onboarding demo",
+      hint: err instanceof Error ? err.message : "demo failed",
+    });
+  }
 }
 
 /** Teammate handoff: read a traveller's Mem0 profile by Telegram user id. */

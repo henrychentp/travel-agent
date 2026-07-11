@@ -32,6 +32,7 @@ import {
   handleGoogleAuthUrl,
   handleGoogleCallback,
   handleGoogleStart,
+  handleOnboardingComplete,
   handleSessionBootstrap,
 } from "./connect-handlers.js";
 import {
@@ -257,6 +258,11 @@ export async function handleHttpRequest(
 
     if (req.method === "POST" && url.pathname === "/api/onboarding/swipes") {
       await handleSwipes(req, res);
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/onboarding/complete") {
+      await handleOnboardingComplete(req, res, mem0);
       return;
     }
 
