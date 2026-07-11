@@ -1,14 +1,16 @@
 /**
  * Hermes — the Manager / orchestrator.
  *
- * Routes traveller intent and coordinates the three specialist skills over a
- * single shared traveller memory (Mem0) and live trip state (Trip Store).
- * Owns the wiring so skills never construct their own dependencies.
+ * Routes traveller intent and coordinates the skills over a single shared
+ * traveller memory (Mem0), live trip state (Trip Store), and one planning
+ * backbone (the Director). Owns the wiring so skills never build their own deps.
  */
 
 import { createMem0Client, type Mem0Client } from "../shared/mem0-client.js";
 import { createTripStore, type TripStore } from "../shared/trip-store.js";
 import { createLiveTools, type LiveTools } from "../tools/index.js";
+import { Director } from "../core/director.js";
+import { applyPatch as applyTripPatch } from "../core/apply-patch.js";
 
 import { onboardUser } from "../skills/onboarding/index.js";
 import { planTrip } from "../skills/trip-planner/index.js";
@@ -29,13 +31,15 @@ export interface HermesDeps {
   mem0: Mem0Client;
   trips: TripStore;
   tools: LiveTools;
-  now?: () => string;
+  director: Director;
+  now: () => string;
 }
 
 export class Hermes {
   private mem0: Mem0Client;
   private trips: TripStore;
   private tools: LiveTools;
+  private director: Director;
   private now: () => string;
 
   constructor(deps?: Partial<HermesDeps>) {
@@ -43,6 +47,8 @@ export class Hermes {
     this.trips = deps?.trips ?? createTripStore();
     this.tools = deps?.tools ?? createLiveTools();
     this.now = deps?.now ?? (() => new Date().toISOString());
+    this.director =
+      deps?.director ?? new Director({ tools: this.tools, now: this.now });
   }
 
   /** Route: onboard a traveller and learn their durable taste. */
@@ -50,20 +56,17 @@ export class Hermes {
     return onboardUser(userId, answers, { mem0: this.mem0, now: this.now });
   }
 
-  /** Route: plan a whole trip using remembered taste. */
+  /** Route: plan a whole trip (a patch from an empty itinerary). */
   plan(userId: UserId, request: TripRequest): Promise<TripPlan> {
     return planTrip(userId, request, {
       mem0: this.mem0,
       trips: this.trips,
-      tools: this.tools,
+      director: this.director,
       now: this.now,
     });
   }
 
-  /**
-   * Route: handle a spontaneous in-trip need. Returns a proposed patch; the
-   * caller commits it once approved (auto or human).
-   */
+  /** Route: handle a spontaneous in-trip need. Returns a proposed patch. */
   liveNeed(
     userId: UserId,
     tripId: TripId,
@@ -72,25 +75,18 @@ export class Hermes {
     return handleLiveNeed(userId, tripId, request, {
       mem0: this.mem0,
       trips: this.trips,
-      tools: this.tools,
-      now: this.now,
+      director: this.director,
     });
   }
 
   /**
-   * Apply an approved patch to Trip State as a new version.
-   * TODO: enforce the human-approval gate for patches where
-   * `requiresApproval` is true.
+   * Commit an approved patch to Trip State as a new version.
+   * TODO: enforce the human-approval gate when `patch.requiresApproval`.
    */
   async applyPatch(patch: TripPatch): Promise<TripPlan> {
     const state = await this.trips.get(patch.tripId);
     if (!state) throw new Error(`Unknown tripId: ${patch.tripId}`);
-    // TODO: translate patch.ops into itinerary mutations.
-    const next: TripPlan = {
-      ...state.current,
-      version: state.current.version + 1,
-      createdAt: this.now(),
-    };
+    const next = applyTripPatch(state.current, patch, this.now());
     await this.trips.commit(next);
     return next;
   }
