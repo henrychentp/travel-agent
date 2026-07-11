@@ -63,6 +63,15 @@ function scoutQuery(profile: TravellerProfile, ctx: ScoutContext): string {
   ].filter(Boolean).join(". ");
 }
 
+function scoutQueries(profile: TravellerProfile, ctx: ScoutContext): string[] {
+  const categories = profile.activities.categories ?? [];
+  const food = profile.food.cuisineLoves ?? [];
+  const queries = [scoutQuery(profile, ctx)];
+  if (categories.length > 0) queries.push(`Best currently open ${categories.slice(0, 3).join(", ")} in ${ctx.destination} for ${ctx.start} to ${ctx.end}.`);
+  if (food.length > 0) queries.push(`Best currently open ${food.slice(0, 2).join(" and ")} food experiences in ${ctx.destination} for ${ctx.start} to ${ctx.end}.`);
+  return [...new Set(queries)].slice(0, 3);
+}
+
 /** Local Scout backed by Linkup's real-time web search. */
 export class LinkupScout implements Scout {
   constructor(private readonly linkup: LinkupSearch) {}
@@ -72,8 +81,17 @@ export class LinkupScout implements Scout {
     ctx: ScoutContext,
     _tools: LiveTools,
   ): Promise<ScoutFindings> {
-    const results = await this.linkup.search(scoutQuery(profile, ctx));
-    const options: Booking[] = results.flatMap((result, index) => {
+    // Parallel fast searches improve breadth without serially adding latency.
+    // A partial failure still leaves usable candidates from the other searches.
+    const settled = await Promise.allSettled(
+      scoutQueries(profile, ctx).map((query) => this.linkup.search(query, "fast")),
+    );
+    const results = settled.flatMap((outcome) => outcome.status === "fulfilled" ? outcome.value : []);
+    const uniqueResults = results.filter((result, index, all) => {
+      const key = result.url ?? result.name;
+      return Boolean(key) && all.findIndex((candidate) => (candidate.url ?? candidate.name) === key) === index;
+    });
+    const options: Booking[] = uniqueResults.flatMap((result, index) => {
       const title = result.name?.trim();
       if (!title) return [];
       return [{
