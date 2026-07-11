@@ -91,11 +91,6 @@ async function uploadTelegramAsset(token: string, method: "sendDocument" | "send
  */
 async function sendFinalAssets(chatId: number, itinerary: string, narration: string): Promise<void> {
   const token = getTelegramBotToken();
-  const elevenKey = process.env.ELEVENLABS_API_KEY;
-  const voiceId = process.env.ELEVENLABS_VOICE_ID;
-  if (!elevenKey || !voiceId) {
-    throw new Error("Demo delivery requires ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID.");
-  }
   const pdf = new Blob([simplePdf("Hermes itinerary", itinerary)], {
     type: "application/pdf",
   });
@@ -104,6 +99,13 @@ async function sendFinalAssets(chatId: number, itinerary: string, narration: str
   document.set("document", pdf, "hermes-recommendation.pdf");
   await uploadTelegramAsset(token, "sendDocument", document);
 
+  // A PDF is useful on its own. Send it before checking voice configuration so
+  // a missing ElevenLabs setting never withholds the final itinerary document.
+  const elevenKey = process.env.ELEVENLABS_API_KEY;
+  const voiceId = process.env.ELEVENLABS_VOICE_ID;
+  if (!elevenKey || !voiceId) {
+    throw new Error("Demo delivery requires ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID.");
+  }
   const voice = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
     method: "POST",
     headers: {
@@ -148,9 +150,15 @@ function demoRequest(profile: TravellerProfile): TripRequest {
   const start = trip.startDate ? new Date(`${trip.startDate}T12:00:00Z`) : new Date();
   start.setUTCDate(start.getUTCDate() + 21);
   const startDate = start.toISOString().slice(0, 10);
-  const end = new Date(start);
-  end.setUTCDate(end.getUTCDate() + 2);
-  const endDate = trip.endDate ?? end.toISOString().slice(0, 10);
+  const fallbackEnd = new Date(start);
+  fallbackEnd.setUTCDate(fallbackEnd.getUTCDate() + 2);
+  const fallbackEndDate = fallbackEnd.toISOString().slice(0, 10);
+  // A stale end date from an earlier onboarding pass must never create an
+  // impossible trip range. Keep a valid selected end date; otherwise use a
+  // short demo window after the selected start.
+  const endDate = trip.endDate && trip.endDate >= startDate
+    ? trip.endDate
+    : fallbackEndDate;
   return {
     destination,
     startDate,
