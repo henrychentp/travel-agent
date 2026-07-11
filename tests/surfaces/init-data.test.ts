@@ -14,6 +14,9 @@ test("resolveTelegramUser falls back to unsafe user when initData is invalid", (
       { id: 42, first_name: "Alex" },
     );
     assert.equal(user?.id, 42);
+
+    const fromString = resolveTelegramUser("", BOT, { id: "77" as unknown as number, first_name: "Sam" });
+    assert.equal(fromString?.id, 77);
   } finally {
     if (prev === undefined) delete process.env.TELEGRAM_ALLOW_UNSAFE_USER;
     else process.env.TELEGRAM_ALLOW_UNSAFE_USER = prev;

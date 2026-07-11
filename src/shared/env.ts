@@ -83,7 +83,8 @@ export function getServerPort(): number {
 }
 
 export function getTelegramAllowUnsafeUser(): boolean {
-  return process.env.TELEGRAM_ALLOW_UNSAFE_USER === "true";
+  const v = process.env.TELEGRAM_ALLOW_UNSAFE_USER?.trim().toLowerCase();
+  return v === "true" || v === "1" || v === "yes";
 }
 
 /** True when hosted Mem0 is configured (otherwise the in-memory stub is used). */

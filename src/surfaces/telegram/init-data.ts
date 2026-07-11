@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { UserId } from "../../shared/schemas.js";
+import { getTelegramAllowUnsafeUser } from "../../shared/env.js";
 
 export interface TelegramWebAppUser {
   id: number;
@@ -93,6 +94,22 @@ export function telegramUserId(user: TelegramWebAppUser): string {
   return `tg:${user.id}`;
 }
 
+/** Normalize WebApp user payloads (some clients send string ids). */
+export function normalizeTelegramUser(
+  raw?: TelegramWebAppUser | null,
+): TelegramWebAppUser | null {
+  if (!raw?.id) return null;
+  const id =
+    typeof raw.id === "string" ? Number(raw.id) : Number(raw.id);
+  if (!Number.isFinite(id) || id <= 0) return null;
+  return {
+    id,
+    first_name: raw.first_name?.trim() || "Traveller",
+    last_name: raw.last_name,
+    username: raw.username,
+  };
+}
+
 /** Resolve user from signed initData, with optional unsafe fallback for WebApp quirks. */
 export function resolveTelegramUser(
   initData: string,
@@ -100,6 +117,8 @@ export function resolveTelegramUser(
   unsafeUser?: TelegramWebAppUser | null,
   resumeToken?: string | null,
 ): TelegramWebAppUser | null {
+  const unsafe = normalizeTelegramUser(unsafeUser);
+
   if (initData?.trim()) {
     if (validateInitData(initData, botToken)) {
       return parseTelegramUser(initData);
@@ -110,11 +129,8 @@ export function resolveTelegramUser(
     const userId = verifyResumeToken(resumeToken, botToken);
     if (userId) return userFromId(userId);
   }
-  if (
-    process.env.TELEGRAM_ALLOW_UNSAFE_USER === "true" &&
-    unsafeUser?.id
-  ) {
-    return unsafeUser;
+  if (getTelegramAllowUnsafeUser() && unsafe) {
+    return unsafe;
   }
   return null;
 }

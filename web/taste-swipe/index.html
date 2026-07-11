@@ -179,6 +179,14 @@
       white-space: pre-wrap; border: 1px solid var(--border);
       box-shadow: var(--shadow);
     }
+    .saved-chips {
+      display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: center;
+      margin: 0.75rem 0 0.25rem; max-width: 300px;
+    }
+    .saved-chip {
+      font-size: 0.72rem; padding: 0.35rem 0.65rem; border-radius: 100px;
+      background: #e8f5e9; color: var(--green); font-weight: 600;
+    }
     .btn.loading { opacity: 0.5; pointer-events: none; }
     .link-skip { background: none; border: none; color: var(--muted); font-size: 0.82rem; padding: 0.5rem; cursor: pointer; font-family: inherit; text-decoration: underline; text-underline-offset: 2px; }
 
@@ -355,8 +363,10 @@
     <div class="mark" style="color:var(--green)">✈️</div>
     <h1>Bon voyage!</h1>
     <p id="doneStatus" style="max-width:280px">Stamping your taste passport…</p>
+    <div id="savedBox" class="saved-chips" style="display:none"></div>
     <div id="recapBox" class="recap-box" style="display:none"></div>
     <button class="btn btn-dark btn-block" id="closeBtn" style="display:none;margin-top:1.25rem;max-width:280px">Back to Hermes chat</button>
+    <button class="btn btn-ghost btn-block" id="retryBtn" style="display:none;margin-top:0.5rem;max-width:280px">Try saving again</button>
   </div>
 
   <script>
@@ -394,6 +404,35 @@
       if (tg.initDataUnsafe?.user?.id) unsafeUser = tg.initDataUnsafe.user;
       persistSession();
       return !!(initData || unsafeUser?.id || resumeToken);
+    }
+
+    async function bootstrapSession() {
+      captureFromTelegram();
+      restoreSession();
+      const tryBootstrap = async (payload) => {
+        const res = await fetch('/api/session/bootstrap', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return false;
+        if (data.resume) {
+          resumeToken = data.resume;
+          persistSession();
+          return true;
+        }
+        return false;
+      };
+
+      if (await tryBootstrap(authPayload())) return true;
+
+      if (initData) {
+        initData = '';
+        sessionStorage.removeItem(SESSION_INIT);
+        if (await tryBootstrap(authPayload())) return true;
+      }
+      return sessionOk();
     }
 
     function showScreen(id) {
@@ -467,15 +506,19 @@
       return sessionOk();
     }
 
-    function requireSession(action) {
-      if (ensureSession()) return true;
+    async function requireSession() {
+      await bootstrapSession();
+      if (ensureSession()) {
+        showSessionBanner(true);
+        return true;
+      }
       showSessionBanner(false);
       showFeedback('Open from the Hermes chat: send /start, then tap 🎯 Build taste profile.', true);
       return false;
     }
 
     async function apiPost(path, body) {
-      ensureSession();
+      await bootstrapSession();
       const res = await fetch(path, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -514,13 +557,17 @@
         return true;
       }
       if (p.get('google') === 'unconfigured') {
-        showFeedback('Google OAuth not configured yet. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to server .env, then restart. Redirect URI: ' + window.location.origin + '/api/connect/google/callback', true);
+        showFeedback('Google OAuth not configured on the server. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to Vercel env vars.', true);
         clearUrlParams();
         showScreen('connect');
         return true;
       }
       if (p.get('google') === 'error') {
-        showFeedback('Google sign-in failed. Try again or skip for now.', true);
+        const reason = p.get('reason');
+        const hint = reason
+          ? decodeURIComponent(reason)
+          : 'Google sign-in failed. Try again or skip for now.';
+        showFeedback(hint, true);
         clearUrlParams();
         showScreen('connect');
         return true;
@@ -538,14 +585,23 @@
       if (el) el.classList.toggle('loading', on);
     }
 
-    // Google — navigate inside the mini app webview (no external browser)
-    document.getElementById('btnGoogle').addEventListener('click', () => {
+    // Google — open OAuth in the system browser (Google blocks embedded WebViews)
+    document.getElementById('btnGoogle').addEventListener('click', async () => {
       if (!sessionOk()) { showSessionBanner(false); return; }
-      const u = unsafeUser ? `&unsafeUser=${encodeURIComponent(JSON.stringify(unsafeUser))}` : '';
-      const url = `/api/connect/google/start?initData=${encodeURIComponent(initData)}${u}`;
       setLoading('btnGoogle', true);
-      showFeedback('Redirecting to Google sign-in…');
-      window.location.assign(url);
+      showFeedback('Opening Google sign-in in your browser…');
+      try {
+        const data = await apiPost('/api/connect/google/url', {});
+        const open = (url) => {
+          if (tg?.openLink) tg.openLink(url);
+          else window.open(url, '_blank', 'noopener');
+        };
+        open(data.authUrl);
+      } catch (e) {
+        showFeedback(e.message, true);
+      } finally {
+        setLoading('btnGoogle', false);
+      }
     });
 
     // Destination city dropdown
@@ -673,16 +729,16 @@
     bindFile('obsidianFile', 'obsidianText');
 
     // Nav
-    document.getElementById('continueBtn').addEventListener('click', () => {
-      if (!requireSession('continue')) return;
+    document.getElementById('continueBtn').addEventListener('click', async () => {
+      if (!(await requireSession())) return;
       showScreen('intro');
     });
-    document.getElementById('skipConnectBtn').addEventListener('click', () => {
-      if (!requireSession('skip')) return;
+    document.getElementById('skipConnectBtn').addEventListener('click', async () => {
+      if (!(await requireSession())) return;
       showScreen('intro');
     });
-    document.getElementById('startBtn').addEventListener('click', () => {
-      if (!requireSession('swipe')) return;
+    document.getElementById('startBtn').addEventListener('click', async () => {
+      if (!(await requireSession())) return;
       showScreen('swipe');
       renderCard();
     });
@@ -741,36 +797,62 @@
       el.addEventListener('pointercancel', end);
     }
 
+    function renderSavedChips(saved, mem0Saved) {
+      const box = document.getElementById('savedBox');
+      box.innerHTML = '';
+      const chips = [];
+      if (mem0Saved) chips.push('Mem0 memory');
+      if (saved?.destinationCity) chips.push(`Destination: ${saved.destinationCity}`);
+      if (saved?.location) chips.push(`Location: ${saved.location}`);
+      for (const c of saved?.connected || []) chips.push(`${c} connected`);
+      if (saved?.swipeCount) chips.push(`${saved.swipeCount} swipes`);
+      for (const label of chips) {
+        const el = document.createElement('span');
+        el.className = 'saved-chip';
+        el.textContent = label;
+        box.appendChild(el);
+      }
+      box.style.display = chips.length ? 'flex' : 'none';
+    }
+
     async function finish() {
-      if (!requireSession('finish')) {
+      const ok = await requireSession();
+      if (!ok) {
         showScreen('done');
         document.getElementById('doneStatus').textContent =
           'Could not verify Telegram session. Send /start in chat, then open from the keyboard button.';
+        document.getElementById('retryBtn').style.display = 'block';
         return;
       }
       showScreen('done');
       const st = document.getElementById('doneStatus');
       const recapEl = document.getElementById('recapBox');
       const closeBtn = document.getElementById('closeBtn');
-      st.textContent = 'Packing your taste profile…';
+      const retryBtn = document.getElementById('retryBtn');
+      retryBtn.style.display = 'none';
+      st.textContent = 'Saving your taste profile to Mem0…';
       try {
         const data = await apiPost('/api/onboarding/swipes', { swipes });
-        st.textContent = 'Profile saved.';
+        st.textContent = data.mem0Saved
+          ? 'All set — your taste profile is saved.'
+          : 'Profile saved for this session.';
+        renderSavedChips(data.saved, data.mem0Saved);
         if (data.recap) {
           recapEl.textContent = data.recap;
           recapEl.style.display = 'block';
         }
         closeBtn.style.display = 'block';
         if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-        // The API response means the taste profile is already persisted in
-        // Mem0. Notify the bot so it can start the final demo delivery.
         if (tg?.sendData) {
           tg.sendData(JSON.stringify({ type: 'onboarding-complete' }));
         }
       } catch (e) {
         st.textContent = e.message || 'Could not save. Try again.';
+        retryBtn.style.display = 'block';
       }
     }
+
+    document.getElementById('retryBtn').addEventListener('click', () => finish());
 
     document.getElementById('closeBtn').addEventListener('click', () => {
       if (tg) tg.close();
@@ -802,7 +884,8 @@
           gpsMeta.textContent = `GPS: ${data.location.lat.toFixed(4)}, ${data.location.lng.toFixed(4)} · near ${data.location.city}`;
         }
         if (!data.googleConfigured) {
-          showFeedback('Almost there — paste your Google Client Secret into .env and add the redirect URI in Cloud Console (see chat).', true);
+          const uri = data.googleRedirectUri || `${window.location.origin}/api/connect/google/callback`;
+          showFeedback(`Google OAuth not configured on server. Set GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET in Vercel. Redirect URI: ${uri}`, true);
         }
       } catch (_) {}
     }
@@ -811,6 +894,7 @@
       restoreSession();
       if (handleReturnParams()) {
         await waitForTelegram();
+        await bootstrapSession();
         const ok = sessionOk();
         showSessionBanner(ok);
         if (ok) {
@@ -819,7 +903,9 @@
         }
         return;
       }
-      const ok = await waitForTelegram();
+      await waitForTelegram();
+      await bootstrapSession();
+      const ok = sessionOk();
       showSessionBanner(ok);
       loadDeck();
       loadCities();

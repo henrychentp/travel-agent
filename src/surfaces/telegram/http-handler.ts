@@ -28,8 +28,10 @@ import {
   handleConnectPaste,
   handleConnectSources,
   handleConnectStatus,
+  handleGoogleAuthUrl,
   handleGoogleCallback,
   handleGoogleStart,
+  handleSessionBootstrap,
 } from "./connect-handlers.js";
 import {
   resolveTelegramUser,
@@ -94,6 +96,7 @@ async function handleSwipes(req: IncomingMessage, res: ServerResponse) {
   }
 
   const userId = telegramUserId(tgUser);
+  const existing = await mem0.getProfile(userId);
   const { profile, recapFacts } = await onboardFromSwipes(userId, swipes, { mem0 });
 
   let recap = formatSwipeRecap(recapFacts);
@@ -121,6 +124,13 @@ async function handleSwipes(req: IncomingMessage, res: ServerResponse) {
       ok: true,
       userId,
       recap,
+      mem0Saved: isMem0Configured(),
+      saved: {
+        destinationCity: profile.destinationCity ?? existing?.destinationCity ?? null,
+        location: profile.location?.city ?? existing?.location?.city ?? null,
+        connected: profile.connectedSources?.map((s) => s.id) ?? [],
+        swipeCount: swipes.length,
+      },
       location: profile.location?.city,
       connected: profile.connectedSources?.map((s) => s.id) ?? [],
     }),
@@ -174,6 +184,11 @@ export async function handleHttpRequest(
       return;
     }
 
+    if (req.method === "POST" && url.pathname === "/api/connect/google/url") {
+      await handleGoogleAuthUrl(req, res);
+      return;
+    }
+
     if (req.method === "GET" && url.pathname === "/api/connect/google/start") {
       await handleGoogleStart(req, res);
       return;
@@ -201,6 +216,11 @@ export async function handleHttpRequest(
 
     if (req.method === "POST" && url.pathname === "/api/connect/paste") {
       await handleConnectPaste(req, res, mem0);
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/session/bootstrap") {
+      await handleSessionBootstrap(req, res);
       return;
     }
 

@@ -24,6 +24,19 @@ const SCOPES = [
   "https://www.googleapis.com/auth/calendar.readonly",
 ].join(" ");
 
+export function getGoogleSetupInfo(): {
+  configured: boolean;
+  redirectUri: string | null;
+  scopes: string[];
+} {
+  const env = getGoogleEnv();
+  return {
+    configured: env !== null,
+    redirectUri: env?.redirectUri ?? null,
+    scopes: SCOPES.split(" "),
+  };
+}
+
 export function googleAuthUrl(userId: UserId): string | null {
   const env = getGoogleEnv();
   if (!env) return null;
@@ -57,8 +70,19 @@ export async function exchangeGoogleCode(
     }),
   });
 
-  if (!res.ok) throw new Error(`Google token exchange failed: ${await res.text()}`);
-  const data = (await res.json()) as {
+  const body = await res.text();
+  if (!res.ok) {
+    let detail = body;
+    try {
+      const parsed = JSON.parse(body) as { error?: string; error_description?: string };
+      detail = [parsed.error, parsed.error_description].filter(Boolean).join(": ");
+    } catch {
+      /* keep raw body */
+    }
+    throw new Error(detail || `Google token exchange failed (${res.status})`);
+  }
+
+  const data = JSON.parse(body) as {
     access_token: string;
     refresh_token?: string;
   };
@@ -100,8 +124,11 @@ export async function fetchGoogleSignals(userId: UserId): Promise<{
 
   const emails: { subject: string; snippet?: string }[] = [];
   const calendar: { title: string; start?: string; location?: string }[] = [];
+  const apiErrors: string[] = [];
 
-  if (mailRes.ok) {
+  if (!mailRes.ok) {
+    apiErrors.push(`Gmail API ${mailRes.status}`);
+  } else {
     const mail = (await mailRes.json()) as {
       messages?: { id: string }[];
     };
@@ -121,7 +148,9 @@ export async function fetchGoogleSignals(userId: UserId): Promise<{
     }
   }
 
-  if (calRes.ok) {
+  if (!calRes.ok) {
+    apiErrors.push(`Calendar API ${calRes.status}`);
+  } else {
     const cal = (await calRes.json()) as {
       items?: { summary?: string; start?: { dateTime?: string }; location?: string }[];
     };
@@ -132,6 +161,12 @@ export async function fetchGoogleSignals(userId: UserId): Promise<{
         location: item.location,
       });
     }
+  }
+
+  if (apiErrors.length && emails.length === 0 && calendar.length === 0) {
+    throw new Error(
+      `Google connected but APIs returned no data (${apiErrors.join(", ")}). Enable Gmail API and Google Calendar API in Cloud Console.`,
+    );
   }
 
   return { emails, calendar };

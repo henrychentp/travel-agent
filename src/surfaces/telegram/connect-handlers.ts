@@ -12,6 +12,7 @@ import {
   exchangeGoogleCode,
   fetchGoogleSignals,
   getGoogleEnv,
+  getGoogleSetupInfo,
   googleAuthUrl,
   saveGoogleTokens,
 } from "../../skills/onboarding/google.js";
@@ -56,13 +57,51 @@ function requireUser(
   return user;
 }
 
+export async function handleSessionBootstrap(
+  req: IncomingMessage,
+  res: ServerResponse,
+) {
+  const raw = await readBody(req);
+  const { initData, unsafeUser, resumeToken } = JSON.parse(raw) as {
+    initData?: string;
+    unsafeUser?: TelegramWebAppUser;
+    resumeToken?: string;
+  };
+
+  const user = resolveTelegramUser(
+    initData ?? "",
+    getTelegramBotToken(),
+    unsafeUser,
+    resumeToken,
+  );
+  if (!user) {
+    json(res, 401, {
+      error: "Could not verify Telegram session",
+      hint: "Send /start in the Hermes chat, then tap 🎯 Build taste profile (keyboard button)",
+    });
+    return;
+  }
+
+  const userId = telegramUserId(user);
+  const resume = issueResumeToken(userId, getTelegramBotToken());
+  json(res, 200, {
+    ok: true,
+    userId,
+    firstName: user.first_name,
+    resume,
+  });
+}
+
 export async function handleConnectSources(
   _req: IncomingMessage,
   res: ServerResponse,
 ) {
+  const google = getGoogleSetupInfo();
   json(res, 200, {
     connectors: CONNECTORS,
-    googleConfigured: getGoogleEnv() !== null,
+    googleConfigured: google.configured,
+    googleRedirectUri: google.redirectUri,
+    googleScopes: google.scopes,
   });
 }
 
@@ -168,6 +207,42 @@ export async function handleConnectPaste(
   json(res, 200, { ok: true, message: `${source} notes imported.` });
 }
 
+function googleErrorReason(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  return message.slice(0, 180);
+}
+
+export async function handleGoogleAuthUrl(
+  req: IncomingMessage,
+  res: ServerResponse,
+) {
+  const raw = await readBody(req);
+  const { initData, unsafeUser, resumeToken } = JSON.parse(raw) as {
+    initData: string;
+    unsafeUser?: TelegramWebAppUser;
+    resumeToken?: string;
+  };
+
+  const user = requireUser(initData, unsafeUser, res, resumeToken);
+  if (!user) return;
+
+  const userId = telegramUserId(user);
+  const authUrl = googleAuthUrl(userId);
+  if (!authUrl) {
+    const setup = getGoogleSetupInfo();
+    json(res, 503, {
+      error: "Google OAuth not configured",
+      redirectUri: setup.redirectUri,
+    });
+    return;
+  }
+
+  json(res, 200, {
+    authUrl,
+    redirectUri: getGoogleEnv()?.redirectUri ?? null,
+  });
+}
+
 export async function handleGoogleStart(
   req: IncomingMessage,
   res: ServerResponse,
@@ -234,11 +309,13 @@ export async function handleGoogleCallback(
     });
     res.end();
   } catch (err) {
+    console.error("Google OAuth callback failed:", err);
     const resume = userId
       ? `&resume=${encodeURIComponent(issueResumeToken(userId, getTelegramBotToken()))}`
       : "";
+    const reason = encodeURIComponent(googleErrorReason(err));
     res.writeHead(302, {
-      Location: `${getWebAppUrl()}/?google=error${resume}`,
+      Location: `${getWebAppUrl()}/?google=error&reason=${reason}${resume}`,
     });
     res.end();
   }
@@ -271,5 +348,6 @@ export async function handleConnectStatus(
     location: profile?.location ?? null,
     destinationCity: profile?.destinationCity ?? null,
     googleConfigured: getGoogleEnv() !== null,
+    googleRedirectUri: getGoogleSetupInfo().redirectUri,
   });
 }
