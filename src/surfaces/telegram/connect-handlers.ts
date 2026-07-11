@@ -26,7 +26,7 @@ import {
 } from "./init-data.js";
 import { getTelegramBotToken, getWebAppUrl, isMem0Configured, isTelegramConfigured } from "../../shared/env.js";
 import type { UserId } from "../../shared/schemas.js";
-import { runOnboardingDemo, tgApi } from "./telegram-bot.js";
+import { tgApi } from "./telegram-bot.js";
 
 async function readBody(req: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
@@ -192,7 +192,7 @@ export async function handleConnectCities(
   json(res, 200, { cities: DESTINATION_CITIES });
 }
 
-/** Save trip context to Mem0 and kick off the Telegram demo itinerary. */
+/** Save trip context to Mem0; Hermes owns the subsequent demo delivery. */
 export async function handleOnboardingComplete(
   req: IncomingMessage,
   res: ServerResponse,
@@ -234,13 +234,16 @@ export async function handleOnboardingComplete(
       );
     }
 
-    const chatId = user.id;
-    await runOnboardingDemo(chatId, userId);
-    json(res, 200, { ok: true, demoStarted: true, mem0Configured: isMem0Configured() });
+    json(res, 200, {
+      ok: true,
+      demoStarted: false,
+      nextAction: "Send demo in Hermes chat to build and deliver your itinerary.",
+      mem0Configured: isMem0Configured(),
+    });
   } catch (err) {
     json(res, 502, {
-      error: "Could not start onboarding demo",
-      hint: err instanceof Error ? err.message : "demo failed",
+      error: "Could not save onboarding context",
+      hint: err instanceof Error ? err.message : "save failed",
     });
   }
 }

@@ -930,11 +930,12 @@
     }
 
     async function finish() {
+      let profileSaved = false;
       const ok = await requireSession();
       if (!ok) {
         showScreen('done');
         document.getElementById('doneStatus').textContent =
-          'Could not verify Telegram session. Send /start in chat, then open from the keyboard button.';
+          'Could not verify Telegram session. Send start in chat, then open from the keyboard button.';
         document.getElementById('retryBtn').style.display = 'block';
         return;
       }
@@ -947,9 +948,10 @@
       st.textContent = 'Saving your taste profile to Mem0…';
       try {
         const data = await apiPost('/api/onboarding/swipes', { swipes });
+        profileSaved = true;
         st.textContent = data.mem0Saved
-          ? 'Taste profile saved — Hermes is building your personalised demo in chat…'
-          : 'Profile saved for this session — Hermes is building your personalised demo in chat…';
+          ? 'Taste profile saved in Hermes.'
+          : 'Profile saved for this session in Hermes.';
         renderSavedChips(data.saved, data.mem0Saved);
         if (data.recap) {
           recapEl.textContent = data.recap;
@@ -957,10 +959,12 @@
         }
         if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
         await apiPost('/api/onboarding/complete', { tripContext });
-        st.textContent = 'Done — your demo itinerary is being sent in the Hermes chat.';
+        st.textContent = 'Done — return to Hermes chat and send demo for your personalised itinerary, PDF, and voice memo.';
         closeBtn.style.display = 'block';
       } catch (e) {
-        st.textContent = e.message || 'Could not save. Try again.';
+        st.textContent = profileSaved
+          ? `Your taste profile is saved, but the trip context could not be saved: ${e.message || 'retry.'}`
+          : (e.message || 'Could not save. Try again.');
         retryBtn.style.display = 'block';
       }
     }

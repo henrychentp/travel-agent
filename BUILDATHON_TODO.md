@@ -129,7 +129,9 @@ real-user/account actions.
       `onboarding` to save taste to Mem0, then `demo` to launch itinerary,
       PDF, and ~1-minute voice delivery.
       The Hermes direct-bot path has verified PDF and ElevenLabs delivery;
-      Vercel is optional for the onboarding Mini App.
+      Vercel is optional for the onboarding Mini App. The Mini App saves only;
+      `demo` is the single Hermes-owned delivery path, preventing duplicate
+      text-only Vercel itineraries.
 - [x] A non-engineer can approve or reject a patch from Telegram.
 - [x] Director supports spontaneous same-day plans: LLM extracts city/date/time,
       schedules the next 6–8 hours with buffers, and never plans past 22:00 local.
