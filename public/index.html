@@ -462,6 +462,7 @@
     let resumeToken = '';
     let deck = [], rounds = [], index = 0;
     const swipes = [];
+    let tripContext = null;
     const SESSION_INIT = 'hermes_initData';
     const SESSION_USER = 'hermes_user';
     const SESSION_RESUME = 'hermes_resume';
@@ -900,8 +901,14 @@
         }
         closeBtn.style.display = 'block';
         if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-        if (tg?.sendData) {
-          tg.sendData(JSON.stringify({ type: 'onboarding-complete' }));
+        if (tg?.sendData && tripContext) {
+          tg.sendData(JSON.stringify({
+            type: 'trip-context',
+            swipes,
+            ...tripContext,
+          }));
+        } else if (tg?.sendData) {
+          tg.sendData(JSON.stringify({ type: 'onboarding-complete', swipes }));
         }
       } catch (e) {
         st.textContent = e.message || 'Could not save. Try again.';
@@ -924,15 +931,13 @@
         toast('Add a destination and valid travel dates.');
         return;
       }
-      if (tg?.sendData) {
-        tg.sendData(JSON.stringify({
-          type: 'trip-context',
-          city,
-          startDate: start,
-          endDate: end,
-          travellers: Number(travellers),
-        }));
-      }
+      tripContext = {
+        city,
+        location: document.getElementById('citySearch').value.trim() || lastSavedCity || city,
+        startDate: start,
+        endDate: end,
+        travellers: Number(travellers),
+      };
       showScreen('intro');
     });
 

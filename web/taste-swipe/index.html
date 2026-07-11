@@ -462,6 +462,7 @@
     let resumeToken = '';
     let deck = [], rounds = [], index = 0;
     const swipes = [];
+    let tripContext = null;
     const SESSION_INIT = 'hermes_initData';
     const SESSION_USER = 'hermes_user';
     const SESSION_RESUME = 'hermes_resume';
@@ -900,7 +901,15 @@
         }
         closeBtn.style.display = 'block';
         if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-        // Trip context is collected next; send one complete handoff then.
+        if (tg?.sendData && tripContext) {
+          tg.sendData(JSON.stringify({
+            type: 'trip-context',
+            swipes,
+            ...tripContext,
+          }));
+        } else if (tg?.sendData) {
+          tg.sendData(JSON.stringify({ type: 'onboarding-complete', swipes }));
+        }
       } catch (e) {
         st.textContent = e.message || 'Could not save. Try again.';
         retryBtn.style.display = 'block';
@@ -912,7 +921,6 @@
     document.getElementById('closeBtn').addEventListener('click', () => {
       if (tg) tg.close();
     });
-    document.getElementById('tripBtn').addEventListener('click', () => showScreen('trip'));
     document.getElementById('saveTripBtn').addEventListener('click', async () => {
       if (!(await requireSession())) return;
       const city = document.getElementById('tripCity').value.trim();
@@ -923,19 +931,14 @@
         toast('Add a destination and valid travel dates.');
         return;
       }
-      const location = document.getElementById('citySearch').value.trim() || lastSavedCity || city;
-      if (tg?.sendData) {
-        tg.sendData(JSON.stringify({
-          type: 'trip-context',
-          swipes,
-          city,
-          location,
-          startDate: start,
-          endDate: end,
-          travellers: Number(travellers),
-        }));
-      }
-      toast('Trip context saved — return to Hermes chat to plan it.');
+      tripContext = {
+        city,
+        location: document.getElementById('citySearch').value.trim() || lastSavedCity || city,
+        startDate: start,
+        endDate: end,
+        travellers: Number(travellers),
+      };
+      showScreen('intro');
     });
 
     document.getElementById('btnPass').addEventListener('click', () => swipe('left'));
