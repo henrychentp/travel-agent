@@ -17,11 +17,14 @@ test("Linkup client uses bearer authentication and returns search results", asyn
 
   assert.deepEqual(await client.search("Lisbon food"), [{ name: "Venue", url: "https://venue.test", content: undefined }]);
   assert.equal((request?.headers as Record<string, string>).Authorization, "Bearer linkup-key");
+  assert.match(String(request?.body), /"depth":"fast"/);
 });
 
 test("Linkup Scout turns live search results into date-spread activity candidates", async () => {
+  const depths: string[] = [];
   const scout = new LinkupScout({
-    async search() {
+    async search(_query, depth) {
+      depths.push(depth ?? "");
       return [{ name: "Time Out Market", url: "https://timeout.test" }, { name: "Alfama walking tour" }];
     },
   });
@@ -38,4 +41,5 @@ test("Linkup Scout turns live search results into date-spread activity candidate
     { kind: "activity", title: "Time Out Market", date: "2026-09-01", location: "Lisbon", sourceUrl: "https://timeout.test" },
     { kind: "activity", title: "Alfama walking tour", date: "2026-09-02", location: "Lisbon" },
   ]);
+  assert.ok(depths.every((depth) => depth === "fast"));
 });

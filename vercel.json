@@ -6,7 +6,7 @@
   "functions": {
     "api/handler.ts": {
       "maxDuration": 60,
-      "includeFiles": "dist/**"
+      "includeFiles": "{dist/**,web/taste-swipe/**}"
     }
   },
   "rewrites": [

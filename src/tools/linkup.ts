@@ -7,7 +7,7 @@ export interface LinkupSearchResult {
 }
 
 export interface LinkupSearch {
-  search(query: string): Promise<LinkupSearchResult[]>;
+  search(query: string, depth?: "fast" | "standard" | "deep"): Promise<LinkupSearchResult[]>;
 }
 
 type Fetcher = typeof fetch;
@@ -23,7 +23,7 @@ export class LinkupSearchClient implements LinkupSearch {
     private readonly endpoint = "https://api.linkup.so/v1/search",
   ) {}
 
-  async search(query: string): Promise<LinkupSearchResult[]> {
+  async search(query: string, depth: "fast" | "standard" | "deep" = "fast"): Promise<LinkupSearchResult[]> {
     const response = await this.fetcher(this.endpoint, {
       method: "POST",
       headers: {
@@ -32,7 +32,7 @@ export class LinkupSearchClient implements LinkupSearch {
       },
       body: JSON.stringify({
         q: query,
-        depth: "standard",
+        depth,
         outputType: "searchResults",
         maxResults: 8,
       }),

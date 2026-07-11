@@ -9,6 +9,7 @@ import {
   getTelegramBotToken,
   getWebAppUrl,
   isGoogleConfigured,
+  isMem0Configured,
 } from "../../shared/env.js";
 import {
   SWIPE_DECK,
@@ -138,6 +139,7 @@ export async function handleHttpRequest(
           ok: true,
           webAppUrl: getWebAppUrl(),
           googleConfigured: isGoogleConfigured(),
+          mem0Configured: isMem0Configured(),
           vercel: process.env.VERCEL === "1",
         }),
       );
@@ -201,8 +203,17 @@ export async function handleHttpRequest(
       }
       await registerTelegramWebhook();
       await syncTelegramMenuButton();
+      const menu = (await tgApi("getChatMenuButton")) as {
+        result?: { web_app?: { url?: string } };
+      };
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ok: true, webAppUrl: getWebAppUrl() }));
+      res.end(
+        JSON.stringify({
+          ok: true,
+          webAppUrl: getWebAppUrl(),
+          menuButtonUrl: menu.result?.web_app?.url ?? null,
+        }),
+      );
       return;
     }
 

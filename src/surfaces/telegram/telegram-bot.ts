@@ -34,6 +34,76 @@ async function sendMessage(
   });
 }
 
+function simplePdf(title: string, body: string): Uint8Array {
+  const esc = (s: string) =>
+    s.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+  const words = `${title}\n\n${body}`.replace(/\*/g, "").split(/\s+/);
+  const lines: string[] = [];
+  let line = "";
+  for (const word of words) {
+    const next = line ? `${line} ${word}` : word;
+    if (next.length > 72) {
+      lines.push(line);
+      line = word;
+    } else line = next;
+  }
+  if (line) lines.push(line);
+  const stream = `BT\n/F1 12 Tf\n50 760 Td\n16 TL\n${lines.map((l, i) => `${i ? "T*\n" : ""}(${esc(l)}) Tj`).join("\n")}\nET`;
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> /Contents 4 0 R >>",
+    `<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}\nendstream`,
+  ];
+  let output = "%PDF-1.4\n";
+  const offsets = [0];
+  for (const [i, object] of objects.entries()) {
+    offsets.push(Buffer.byteLength(output));
+    output += `${i + 1} 0 obj\n${object}\nendobj\n`;
+  }
+  const xref = Buffer.byteLength(output);
+  output += `xref\n0 5\n0000000000 65535 f \n${offsets.slice(1).map((n) => `${String(n).padStart(10, "0")} 00000 n \n`).join("")}trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return new Uint8Array(Buffer.from(output));
+}
+
+async function sendFreeTimeAssets(chatId: number, reply: string) {
+  const token = getTelegramBotToken();
+  const pdf = new Blob([simplePdf("Hermes recommendation", reply)], {
+    type: "application/pdf",
+  });
+  const document = new FormData();
+  document.set("chat_id", String(chatId));
+  document.set("document", pdf, "hermes-recommendation.pdf");
+  await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
+    method: "POST",
+    body: document,
+  });
+
+  const elevenKey = process.env.ELEVENLABS_API_KEY;
+  const voiceId = process.env.ELEVENLABS_VOICE_ID;
+  if (!elevenKey || !voiceId) return;
+
+  const voice = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+    method: "POST",
+    headers: {
+      "xi-api-key": elevenKey,
+      "Content-Type": "application/json",
+      Accept: "audio/mpeg",
+    },
+    body: JSON.stringify({ text: reply, model_id: "eleven_multilingual_v2" }),
+  });
+  if (!voice.ok) return;
+
+  const audio = new Blob([await voice.arrayBuffer()], { type: "audio/mpeg" });
+  const form = new FormData();
+  form.set("chat_id", String(chatId));
+  form.set("voice", audio, "hermes-recommendation.mp3");
+  await fetch(`https://api.telegram.org/bot${token}/sendVoice`, {
+    method: "POST",
+    body: form,
+  });
+}
+
 function webAppKeyboard() {
   const url = getWebAppUrl();
   return {
@@ -91,6 +161,7 @@ async function handleFreeTime(chatId: number, userId: string, text: string) {
   ]);
 
   await sendMessage(chatId, reply);
+  await sendFreeTimeAssets(chatId, reply);
 }
 
 async function handleWebAppData(chatId: number, data: string) {

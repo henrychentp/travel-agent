@@ -79,7 +79,7 @@ real-user/account actions.
 ## P2 — Dynamic agent organisation
 
 - [x] Director creates a request-specific subtask plan rather than a fixed chain.
-- [ ] Local Scout now has a Linkup-backed, source-grounded candidate path when `LINKUP_API_KEY` is configured; live weather/event proof remains pending.
+- [ ] Local Scout now runs up to three Linkup fast searches in parallel, merges source-grounded candidates, and tolerates partial search failures; live weather/event proof remains pending.
 - [ ] Logistics Guru now rejects out-of-window and duplicate candidates, protects requested downtime, and limits low-walking days to one activity area; live routing, availability, and budget-provider proof remain pending.
 - [ ] Culture Concierge has an opt-in OpenAI-backed rationale path using stored interests; live preference/pace/food/accessibility proof remains pending.
 - [x] Director reviews specialist outputs and requests a retry when a worker

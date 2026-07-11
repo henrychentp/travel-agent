@@ -34,6 +34,15 @@ export function getTelegramBotToken(): string {
 
 /** Resolve public HTTPS base URL (mini app + OAuth). */
 export function resolvePublicBaseUrl(): string | null {
+  // On Vercel, platform-injected domains beat WEBAPP_URL (often a stale local tunnel).
+  if (process.env.VERCEL === "1") {
+    const vercelProd = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+    if (vercelProd) return `https://${vercelProd.replace(/\/$/, "")}`;
+
+    const vercel = process.env.VERCEL_URL?.trim();
+    if (vercel) return `https://${vercel.replace(/\/$/, "")}`;
+  }
+
   const explicit = process.env.WEBAPP_URL?.trim();
   if (explicit) return explicit.replace(/\/$/, "");
 
