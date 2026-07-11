@@ -669,10 +669,9 @@
       }
       if (p.get('google') === 'error') {
         const reason = p.get('reason');
-        let hint = reason ? decodeURIComponent(reason) : 'Google sign-in failed. Try again or skip for now.';
-        if (/deleted_client|deleted/i.test(hint)) {
-          hint = 'Google OAuth client was deleted in Cloud Console. Ask the team to create a new Web client and update Vercel env vars, then try again.';
-        }
+        const hint = reason
+          ? decodeURIComponent(reason)
+          : 'Google sign-in failed. Try again or skip for now.';
         showFeedback(hint, true);
         clearUrlParams();
         showScreen('connect');

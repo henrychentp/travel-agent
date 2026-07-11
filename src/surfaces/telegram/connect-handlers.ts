@@ -101,6 +101,7 @@ export async function handleConnectSources(
     connectors: CONNECTORS,
     googleConfigured: google.configured,
     googleRedirectUri: google.redirectUri,
+    googleClientIdHint: google.clientIdHint,
     googleScopes: google.scopes,
   });
 }
@@ -209,7 +210,13 @@ export async function handleConnectPaste(
 
 function googleErrorReason(err: unknown): string {
   const message = err instanceof Error ? err.message : String(err);
-  return message.slice(0, 180);
+  if (/deleted_client/i.test(message)) {
+    return "Google OAuth client was deleted. Create a new Web client in Cloud Console and update GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET on Vercel.";
+  }
+  if (/invalid_client/i.test(message)) {
+    return "Google client ID or secret is wrong. Check GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET on Vercel match Cloud Console.";
+  }
+  return message.slice(0, 220);
 }
 
 export async function handleGoogleAuthUrl(

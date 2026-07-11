@@ -27,12 +27,17 @@ const SCOPES = [
 export function getGoogleSetupInfo(): {
   configured: boolean;
   redirectUri: string | null;
+  clientIdHint: string | null;
   scopes: string[];
 } {
   const env = getGoogleEnv();
+  const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
   return {
     configured: env !== null,
     redirectUri: env?.redirectUri ?? null,
+    clientIdHint: clientId
+      ? `${clientId.slice(0, 12)}…${clientId.slice(-20)}`
+      : null,
     scopes: SCOPES.split(" "),
   };
 }
