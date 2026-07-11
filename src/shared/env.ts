@@ -16,5 +16,5 @@ export function getOpenAIKey(): string {
 
 /** Default model for skills. Override with OPENAI_MODEL in .env. */
 export function getOpenAIModel(): string {
-  return process.env.OPENAI_MODEL?.trim() || "gpt-4o";
+  return process.env.OPENAI_MODEL?.trim() || "gpt-5.6-terra";
 }

@@ -37,14 +37,25 @@ async function runOnboardingDemo(): Promise<void> {
   const profile = await onboardUser(
     userId,
     {
-      homeCity: "Singapore",
-      budgetTier: "comfort",
-      pace: "balanced",
-      interests: ["food", "hiking"],
-      dietary: ["no-pork"],
-      seatPreference: "aisle",
-      freeText:
-        "hates early-morning flights, prefers boutique hotels over chains",
+      identity: {
+        homeCity: "Singapore",
+        departureAirports: ["SIN"],
+      },
+      pace: {
+        dailyActivityDensity: "moderate",
+        structureVsSpontaneity: 3,
+        walkingTolerance: "high",
+        earlyDepartureTolerance: 1,
+      },
+      accommodation: {
+        types: ["boutique-hotel"],
+        vibe: ["calm", "design-forward"],
+      },
+      transport: { seat: "aisle" },
+      food: { cuisineLoves: ["japanese"], adventurousness: 4 },
+      activities: { categories: ["food", "hiking"] },
+      constraints: { dietaryRestrictions: ["no-pork"] },
+      notes: ["hates early-morning flights, prefers boutique hotels over chains"],
     },
     { mem0 },
   );

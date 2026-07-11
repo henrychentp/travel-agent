@@ -81,7 +81,7 @@ npm run build                 # emit dist/
 The repo runs out of the box on **in-memory** Mem0 + Trip Store + stubbed live
 tools, so no API keys are required for the tests. For LLM-backed dev work, copy
 `.env.example` to `.env`, add your key, and optionally set `OPENAI_MODEL`
-(default: `gpt-4o`).
+(default: `gpt-5.6-terra`).
 
 ### Secrets policy (shared repo)
 
