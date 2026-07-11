@@ -114,22 +114,25 @@ async function sendFinalAssets(chatId: number, itinerary: string, narration: str
 }
 
 function demoRequest(profile: TravellerProfile): TripRequest {
+  const saved = profile.notes.find((note) => note.startsWith("trip-context:"));
+  let trip: { city?: string; startDate?: string; endDate?: string; travellers?: number } = {};
+  try { if (saved) trip = JSON.parse(saved.slice("trip-context:".length)); } catch { /* use fallback */ }
   const destination =
-    profile.destinationCity ??
+    trip.city ?? profile.destinationCity ??
     profile.location?.city ??
     profile.identity.homeCity ??
     "Lisbon";
-  const start = new Date();
+  const start = trip.startDate ? new Date(`${trip.startDate}T12:00:00Z`) : new Date();
   start.setUTCDate(start.getUTCDate() + 21);
   const startDate = start.toISOString().slice(0, 10);
   const end = new Date(start);
   end.setUTCDate(end.getUTCDate() + 2);
-  const endDate = end.toISOString().slice(0, 10);
+  const endDate = trip.endDate ?? end.toISOString().slice(0, 10);
   return {
     destination,
     startDate,
     endDate,
-    travellers: 1,
+    travellers: trip.travellers ?? 1,
     confirmedBookings: [
       { kind: "flight", from: profile.identity.homeCity ?? "Home", to: destination, depart: `${startDate}T11:00:00`, arrive: `${startDate}T14:00:00`, ref: "DEMO-INBOUND" },
       { kind: "hotel", name: `${destination} design hotel`, checkIn: startDate, checkOut: endDate, location: destination, ref: "DEMO-HOTEL" },
@@ -257,9 +260,13 @@ async function handleConcierge(chatId: number, userId: string, text: string) {
 
 async function handleWebAppData(chatId: number, userId: string, data: string) {
   try {
-    const payload = JSON.parse(data) as { type?: string; swipes?: SwipeInput[] };
+    const payload = JSON.parse(data) as { type?: string; swipes?: SwipeInput[]; city?: string; startDate?: string; endDate?: string; travellers?: number };
     if (payload.swipes?.length) await onboardFromSwipes(userId, payload.swipes, { mem0 });
     if (payload.type === "onboarding-complete") await runOnboardingDemo(chatId, userId);
+    if (payload.type === "trip-context" && payload.city && payload.startDate && payload.endDate) {
+      await mem0.remember(userId, `trip-context:${JSON.stringify({ city: payload.city, startDate: payload.startDate, endDate: payload.endDate, travellers: payload.travellers ?? 1 })}`);
+      await runOnboardingDemo(chatId, userId);
+    }
   } catch {
     await sendMessage(chatId, "Your profile was saved, but I could not start the demo automatically. Send `demo` to retry.");
   }
