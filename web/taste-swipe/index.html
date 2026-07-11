@@ -652,6 +652,11 @@
         }
         closeBtn.style.display = 'block';
         if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+        // The API response means the taste profile is already persisted in
+        // Mem0. Notify the bot so it can start the final demo delivery.
+        if (tg?.sendData) {
+          tg.sendData(JSON.stringify({ type: 'onboarding-complete' }));
+        }
       } catch (e) {
         st.textContent = e.message || 'Could not save. Try again.';
       }

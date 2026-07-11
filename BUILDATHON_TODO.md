@@ -125,6 +125,10 @@ real-user/account actions.
 
 - [x] A non-engineer can start a trip from the UI and hand it once to the Telegram trip-start receiver, which enters the existing Director flow.
 - [x] Taste-profile swipe cards use curated Unsplash imagery with a readable text overlay.
+- [ ] Completing the Telegram Mini App writes taste to Mem0, automatically
+      launches the demo itinerary, and delivers a PDF plus a ~1-minute voice
+      briefing. Code path is implemented; live proof requires matching Vercel
+      Telegram/Mem0/ElevenLabs environment variables and deployment.
 - [x] A non-engineer can approve or reject a patch from Telegram.
 - [ ] A non-engineer can pause/retry a run.
 - [x] A non-engineer can inspect recent Director traces and roll back the latest trip from Telegram.

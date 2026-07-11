@@ -10,8 +10,11 @@ import {
   type SwipeInput,
 } from "../../skills/onboarding/swipe.js";
 import { telegramUserId } from "./init-data.js";
+import { Hermes } from "../../orchestrator/index.js";
+import type { TripPlan, TripRequest, TravellerProfile } from "../../shared/schemas.js";
 
 const mem0 = createMem0Client();
+const hermes = new Hermes({ mem0 });
 
 export async function tgApi(method: string, body?: Record<string, unknown>) {
   const token = getTelegramBotToken();
@@ -70,9 +73,9 @@ function simplePdf(title: string, body: string): Uint8Array {
   return new Uint8Array(Buffer.from(output));
 }
 
-async function sendFreeTimeAssets(chatId: number, reply: string) {
+async function sendFinalAssets(chatId: number, itinerary: string, narration: string) {
   const token = getTelegramBotToken();
-  const pdf = new Blob([simplePdf("Hermes recommendation", reply)], {
+  const pdf = new Blob([simplePdf("Hermes itinerary", itinerary)], {
     type: "application/pdf",
   });
   const document = new FormData();
@@ -94,7 +97,8 @@ async function sendFreeTimeAssets(chatId: number, reply: string) {
       "Content-Type": "application/json",
       Accept: "audio/mpeg",
     },
-    body: JSON.stringify({ text: reply, model_id: "eleven_multilingual_v2" }),
+    // 140–155 words is approximately one minute at the default narration pace.
+    body: JSON.stringify({ text: narration, model_id: "eleven_multilingual_v2" }),
   });
   if (!voice.ok) return;
 
@@ -106,6 +110,66 @@ async function sendFreeTimeAssets(chatId: number, reply: string) {
     method: "POST",
     body: form,
   });
+}
+
+function demoRequest(profile: TravellerProfile): TripRequest {
+  const destination = profile.location?.city ?? profile.identity.homeCity ?? "Lisbon";
+  const start = new Date();
+  start.setUTCDate(start.getUTCDate() + 21);
+  const startDate = start.toISOString().slice(0, 10);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 2);
+  const endDate = end.toISOString().slice(0, 10);
+  return {
+    destination,
+    startDate,
+    endDate,
+    travellers: 1,
+    confirmedBookings: [
+      { kind: "flight", from: profile.identity.homeCity ?? "Home", to: destination, depart: `${startDate}T11:00:00`, arrive: `${startDate}T14:00:00`, ref: "DEMO-INBOUND" },
+      { kind: "hotel", name: `${destination} design hotel`, checkIn: startDate, checkOut: endDate, location: destination, ref: "DEMO-HOTEL" },
+      { kind: "activity", title: "Protected dinner reservation", date: startDate, startAt: `${startDate}T19:30:00`, endAt: `${startDate}T21:00:00`, location: destination },
+      { kind: "flight", from: destination, to: profile.identity.homeCity ?? "Home", depart: `${endDate}T16:00:00`, arrive: `${endDate}T19:00:00`, ref: "DEMO-RETURN" },
+    ],
+  };
+}
+
+function formatItinerary(plan: TripPlan): string {
+  const days = plan.itinerary.map((day) => {
+    const items = day.items.map((item) => {
+      if (item.kind === "flight") return `• Flight: ${item.from} → ${item.to} (${item.depart})`;
+      if (item.kind === "hotel") return `• Stay: ${item.name}`;
+      return `• ${item.startAt ? `${item.startAt.slice(11, 16)} — ` : ""}${item.title}${item.location ? `, ${item.location}` : ""}`;
+    });
+    return `*${day.date}*\n${items.join("\n")}`;
+  });
+  return `*Your demo itinerary — fictional and unbooked*\n${plan.request.destination} · ${plan.request.startDate} to ${plan.request.endDate}\n\n${days.join("\n\n")}\n\nProtected flight, hotel, and dinner anchors are preserved. No booking has been made.`;
+}
+
+async function oneMinuteBriefing(plan: TripPlan, profile: TravellerProfile): Promise<string> {
+  const fallback = `Welcome to your ${plan.request.destination} itinerary. Your plan keeps your confirmed travel and dinner plans protected, with a measured pace around the experiences that suit you best. Each day leaves room for practical transfers and a proper pause, so the trip feels effortless rather than over-scheduled. Check the attached PDF for the full plan, and make any booking decisions only when you are ready.`;
+  try {
+    return await chat([
+      { role: "system", content: "You are Hermes Tour Guide. Write a warm, practical travel voice memo of 140 to 155 words from finalized itinerary facts and the traveller's saved taste. Never invent a booking, availability, price, or opening hour." },
+      { role: "user", content: `Taste: ${profilePromptContext(profile)}\nItinerary:\n${formatItinerary(plan)}` },
+    ]);
+  } catch {
+    return fallback;
+  }
+}
+
+async function runOnboardingDemo(chatId: number, userId: string): Promise<void> {
+  const profile = await mem0.getProfile(userId);
+  if (!hasTasteProfile(profile)) {
+    await sendMessage(chatId, "Your profile was not ready yet. Please reopen *🎯 Build taste profile* and complete the swipes.", { reply_markup: webAppKeyboard() });
+    return;
+  }
+  await sendMessage(chatId, "Your taste profile is saved. I’m researching and building your personalised demo itinerary now…");
+  const plan = await hermes.plan(userId, demoRequest(profile!));
+  const itinerary = formatItinerary(plan);
+  const narration = await oneMinuteBriefing(plan, profile!);
+  await sendMessage(chatId, itinerary);
+  await sendFinalAssets(chatId, itinerary, narration);
 }
 
 function webAppKeyboard() {
@@ -182,15 +246,16 @@ async function handleConcierge(chatId: number, userId: string, text: string) {
   ]);
 
   await sendMessage(chatId, reply);
-  await sendFreeTimeAssets(chatId, reply);
+  await sendFinalAssets(chatId, reply, reply);
 }
 
-async function handleWebAppData(userId: string, data: string) {
+async function handleWebAppData(chatId: number, userId: string, data: string) {
   try {
-    const { swipes } = JSON.parse(data) as { swipes: SwipeInput[] };
-    await onboardFromSwipes(userId, swipes, { mem0 });
+    const payload = JSON.parse(data) as { type?: string; swipes?: SwipeInput[] };
+    if (payload.swipes?.length) await onboardFromSwipes(userId, payload.swipes, { mem0 });
+    if (payload.type === "onboarding-complete") await runOnboardingDemo(chatId, userId);
   } catch {
-    /* recap shown in mini app */
+    await sendMessage(chatId, "Your profile was saved, but I could not start the demo automatically. Send `demo` to retry.");
   }
 }
 
@@ -205,7 +270,7 @@ export async function processTelegramUpdate(update: Record<string, unknown>) {
 
   if (msg.web_app_data) {
     const data = (msg.web_app_data as { data: string }).data;
-    await handleWebAppData(userId, data);
+    await handleWebAppData(chatId, userId, data);
     return;
   }
 

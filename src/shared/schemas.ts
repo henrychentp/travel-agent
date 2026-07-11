@@ -416,6 +416,8 @@ export interface TripRequest {
   travellers: number;
   budget?: number;
   mustHaves?: string[];
+  /** Reviewed facts that the Director must preserve while planning. */
+  confirmedBookings?: Booking[];
 }
 
 export interface FlightBooking {
@@ -447,6 +449,8 @@ export interface Activity {
   location?: string;
   durationMins?: number;
   price?: number;
+  startAt?: ISODate;
+  endAt?: ISODate;
   /** Source used to ground a live Scout recommendation. */
   sourceUrl?: string;
 }

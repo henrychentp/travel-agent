@@ -163,12 +163,21 @@ export class Director {
       }, this.tools);
     }
 
-    let ops: PatchOp[] = findings.options.map((option) => ({
+    const protectedAnchors: PatchOp[] = (request.confirmedBookings ?? []).map((booking) => ({
+      op: "add" as const,
+      date: bookingDate(booking, start),
+      after: booking,
+      reason: "protected confirmed anchor",
+    }));
+    let ops: PatchOp[] = [
+      ...protectedAnchors,
+      ...findings.options.map((option) => ({
       op: "add" as const,
       date: bookingDate(option, start),
       after: option,
       reason: "scout candidate",
-    }));
+      })),
+    ];
 
     // Agent B · Logistics — dynamic revision loop (feasibility, density).
     if (profile) {
