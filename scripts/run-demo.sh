@@ -7,6 +7,14 @@ LOG_TUNNEL="/tmp/cloudflared-hermes.log"
 PID_TUNNEL="/tmp/cloudflared-hermes.pid"
 PID_SERVER="/tmp/hermes-server.pid"
 
+# Local demo reuses the isolated Hermes profile secrets (OpenAI, ElevenLabs,
+# Telegram) without copying them into the repository's ignored .env file.
+if [ -f "$HOME/.hermes/profiles/travelagent/.env" ]; then
+  set -a
+  . "$HOME/.hermes/profiles/travelagent/.env"
+  set +a
+fi
+
 echo "Updating from origin/main…"
 git pull --ff-only origin main
 
