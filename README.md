@@ -48,14 +48,32 @@ travel-agent/
 
 ```bash
 npm install
-npm test        # type-checks, then runs the end-to-end happy path
-npm run build   # emit dist/
+cp .env.example .env          # then add your OpenAI key locally — never commit .env
+git config core.hooksPath .githooks   # one-time: blocks secrets on commit
+npm test                      # no API keys needed (in-memory stubs)
+npm start                     # onboarding dev runner (needs OPENAI_API_KEY in .env)
+npm run build                 # emit dist/
 ```
 
 The repo runs out of the box on **in-memory** Mem0 + Trip Store + stubbed live
-tools, so no API keys are required for the tests. To go live, copy `.env.example`
-to `.env` and fill in the keys, then replace the `create*` factories in
-`src/shared` and `src/tools` with real-backed implementations.
+tools, so no API keys are required for the tests. For LLM-backed dev work, copy
+`.env.example` to `.env`, add your key, and optionally set `OPENAI_MODEL`
+(default: `gpt-4o`).
+
+### Secrets policy (shared repo)
+
+| File | Commit? | Purpose |
+| --- | --- | --- |
+| `.env.example` | Yes | Documents required vars — values stay empty |
+| `.env` | **Never** | Your local keys only (gitignored) |
+| Source code | Yes | Must not contain `sk-...` keys |
+
+A pre-commit hook (`.githooks/pre-commit`) runs `npm run check-secrets` to
+catch accidental key commits. Enable it once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
 
 ## Workstream ownership
 
@@ -63,6 +81,9 @@ The three skills are independent workstreams that share the same repo and the
 same contracts:
 
 - **Person 1 — Onboarding & Memory:** learn taste/constraints, write to Mem0.
+  - Entry point: `src/skills/onboarding/index.ts` (`onboardUser`)
+  - Dev runner: `npm start` → `src/skills/onboarding/dev.ts`
+  - Shared LLM helper: `src/shared/llm.ts` (`chat`, uses `OPENAI_MODEL`)
 - **Person 2 — Whole-Trip Planner:** turn a request into a feasible itinerary.
 - **Person 3 — In-Trip Concierge:** handle live disruptions, propose safe patches
   (major changes gated on human approval).
