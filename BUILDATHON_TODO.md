@@ -54,8 +54,8 @@ real-user/account actions.
 
 - [ ] Confirm the registered track is **AI as Agency**.
 - [x] Install the actual Hermes Agent runtime locally (`hermes --version` verified).
-- [ ] Configure Hermes with a model provider, use it as the coding partner or
-      user-facing agent, and retain the resulting session receipts.
+- [x] Configure Hermes with the OpenAI-compatible custom provider, use it for
+      a verified project prompt, and retain receipt `20260711_141922_51f92a`.
 - [ ] Keep the agency job narrow: research a disruption, create a feasible
       recovery plan, request approval when required, and deliver the result.
 - [ ] Recruit three real testers with genuine travel requests.
@@ -132,7 +132,8 @@ real-user/account actions.
 
 ## P7 — Partner power-ups (+25 each)
 
-- [ ] **Hermes:** real user-facing capability and/or coding-session receipts.
+- [x] **Hermes:** configured live model and retained coding-session receipt
+      `20260711_141922_51f92a`.
 - [x] **Convex:** main persistent backend for state and run logs.
 - [x] **Cloudflare:** deployed Trip Board and authenticated Worker API.
 - [ ] **Linkup:** live Scout search materially changes the plan.
