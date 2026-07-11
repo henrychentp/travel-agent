@@ -40,7 +40,7 @@ two-minute causal story.
 - [ ] Keep the agency job narrow: research a disruption, create a feasible
       recovery plan, request approval when required, and deliver the result.
 - [ ] Recruit three real testers with genuine travel requests.
-- [ ] Publish a Cloudflare landing page and install analytics.
+- [ ] Publish a Cloudflare landing page and install analytics (Trip Board is live; analytics still pending).
 
 ## P1 — Working agency output (highest-value criterion)
 
@@ -74,7 +74,7 @@ two-minute causal story.
 - [x] Persist run ID, traveller/trip IDs, Director plan, handoffs, final output,
       and immutable version history in Convex. Add tool-result, latency, token,
       cost, and approval-event fields with the Trip Board work.
-- [x] Build a Cloudflare-ready Trip Board with a trace tree (deployment pending Cloudflare login).
+- [x] Deploy the Cloudflare Trip Board with a trace tree and authenticated API.
 - [x] Filter the trace by traveller and run; each event visibly identifies its agent.
 - [x] Make an earlier failed run inspectable with its recorded escalation.
 - [x] Add a current-versus-prior version comparison.
@@ -115,7 +115,7 @@ two-minute causal story.
 
 - [ ] **Hermes:** real user-facing capability and/or coding-session receipts.
 - [x] **Convex:** main persistent backend for state and run logs.
-- [ ] **Cloudflare:** deployed Trip Board and/or Worker webhook/API.
+- [x] **Cloudflare:** deployed Trip Board and authenticated Worker API.
 - [ ] **Linkup:** live Scout search materially changes the plan.
 - [ ] **ElevenLabs:** voice request or spoken concierge response does real work.
 - [ ] **Dodo Payments:** live checkout for a genuine premium concierge offer.

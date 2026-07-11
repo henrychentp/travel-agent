@@ -1,0 +1,20 @@
+name: Checklist gate
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  require-checklist-update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Require a checklist update for implementation changes
+        env:
+          CHECKLIST_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: npm run check-checklist
