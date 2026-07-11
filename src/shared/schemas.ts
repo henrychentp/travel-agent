@@ -417,6 +417,8 @@ export interface Activity {
   location?: string;
   durationMins?: number;
   price?: number;
+  /** Source used to ground a live Scout recommendation. */
+  sourceUrl?: string;
 }
 
 export type Booking = FlightBooking | HotelBooking | Activity;
