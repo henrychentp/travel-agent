@@ -919,6 +919,9 @@
     document.getElementById('retryBtn').addEventListener('click', () => finish());
 
     document.getElementById('closeBtn').addEventListener('click', () => {
+      // The profile is saved at this point. Returning to chat is the explicit
+      // handoff that starts Hermes's research and itinerary delivery.
+      if (tg?.sendData) tg.sendData(JSON.stringify({ type: 'onboarding-complete' }));
       if (tg) tg.close();
     });
     document.getElementById('saveTripBtn').addEventListener('click', async () => {

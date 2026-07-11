@@ -275,7 +275,7 @@ async function handleWebAppData(chatId: number, userId: string, data: string) {
       await runOnboardingDemo(chatId, userId);
     }
   } catch {
-    await sendMessage(chatId, "Your profile was saved, but I could not start the demo automatically. Send `demo` to retry.");
+    await sendMessage(chatId, "Your profile was saved, but I could not start the itinerary automatically. Reopen the Mini App and tap Back to Hermes chat once more.");
   }
 }
 
