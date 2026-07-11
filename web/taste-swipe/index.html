@@ -956,7 +956,8 @@
           recapEl.textContent = data.recap;
           recapEl.style.display = 'block';
         }
-        document.getElementById('tripBtn').style.display = 'block'; closeBtn.style.display = 'block';
+        closeBtn.style.display = 'block';
+        setTimeout(() => showScreen('trip'), 650);
         if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
         if (tg?.sendData) {
           tg.sendData(JSON.stringify({ type: 'onboarding-complete' }));
