@@ -139,6 +139,22 @@
       background: var(--bg); resize: vertical; outline: none;
     }
     .expand-panel textarea:focus { border-color: var(--sky); }
+    .field-select, .field-input {
+      width: 100%; border: 1.5px solid var(--border); border-radius: 10px;
+      padding: 0.7rem 0.8rem; font-size: 0.88rem; font-family: inherit;
+      color: var(--text); background: var(--bg); outline: none;
+    }
+    .field-select:focus, .field-input:focus { border-color: var(--sky); }
+    .location-fields { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.55rem; }
+    .location-divider {
+      display: flex; align-items: center; gap: 0.6rem;
+      margin: 0.35rem 0; color: var(--muted); font-size: 0.72rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .location-divider::before, .location-divider::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+    .gps-meta { font-size: 0.75rem; color: var(--muted); margin-top: 0.35rem; line-height: 1.4; }
     .file-row { margin-top: 0.45rem; font-size: 0.78rem; color: var(--muted); }
     .file-row input[type=file] { font-size: 0.75rem; margin-top: 0.25rem; width: 100%; }
 
@@ -246,14 +262,27 @@
 
       <div class="connect-card">
         <div class="row-item">
-          <div class="row-icon">📍</div>
+          <div class="row-icon">🗺️</div>
           <div class="row-body">
-            <div class="row-name">Where are you?</div>
-            <div class="row-desc">Live city for "3 hours free — what should I do?"</div>
+            <div class="row-name">Where are you headed?</div>
+            <div class="row-desc">Pick a destination city or type your own — saved to your taste profile.</div>
           </div>
-          <span class="row-status" id="status-location"> </span>
+          <span class="row-status" id="status-destination"> </span>
         </div>
-        <button class="btn btn-ghost btn-block" id="btnLocation">Share my location</button>
+        <div class="location-fields">
+          <select class="field-select" id="citySelect">
+            <option value="">Choose a city…</option>
+          </select>
+          <input class="field-input" id="cityCustom" type="text" placeholder="Or type any city (e.g. Porto, Chiang Mai)" list="citySuggestions" />
+          <datalist id="citySuggestions"></datalist>
+          <button class="btn btn-dark btn-block" id="btnSaveDestination">Save destination</button>
+
+          <div class="location-divider">or detect now</div>
+
+          <button class="btn btn-ghost btn-block" id="btnLocation">Detect precise location</button>
+          <div class="gps-meta" id="gpsMeta">Uses GPS for your exact coordinates — separate from your chosen destination.</div>
+          <span class="row-status" id="status-location" style="align-self:flex-start"></span>
+        </div>
       </div>
 
       <div class="connect-card">
@@ -432,7 +461,21 @@
       b.classList.add('show');
     }
 
+    function ensureSession() {
+      captureFromTelegram();
+      restoreSession();
+      return sessionOk();
+    }
+
+    function requireSession(action) {
+      if (ensureSession()) return true;
+      showSessionBanner(false);
+      showFeedback('Open from the Hermes chat: send /start, then tap 🎯 Build taste profile.', true);
+      return false;
+    }
+
     async function apiPost(path, body) {
+      ensureSession();
       const res = await fetch(path, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -505,7 +548,54 @@
       window.location.assign(url);
     });
 
-    // Location
+    // Destination city dropdown
+    async function loadCities() {
+      try {
+        const res = await fetch('/api/connect/cities');
+        const data = await res.json();
+        const cities = data.cities || [];
+        const select = document.getElementById('citySelect');
+        const datalist = document.getElementById('citySuggestions');
+        for (const city of cities) {
+          const opt = document.createElement('option');
+          opt.value = city;
+          opt.textContent = city;
+          select.appendChild(opt);
+          const hint = document.createElement('option');
+          hint.value = city;
+          datalist.appendChild(hint);
+        }
+      } catch (_) {}
+    }
+
+    function selectedCityValue() {
+      const fromSelect = document.getElementById('citySelect').value.trim();
+      const fromCustom = document.getElementById('cityCustom').value.trim();
+      return fromCustom || fromSelect;
+    }
+
+    document.getElementById('citySelect').addEventListener('change', (e) => {
+      const value = e.target.value;
+      if (value) document.getElementById('cityCustom').value = value;
+    });
+
+    document.getElementById('btnSaveDestination').addEventListener('click', async () => {
+      if (!sessionOk()) { showSessionBanner(false); return; }
+      const city = selectedCityValue();
+      if (!city) { showFeedback('Choose a city from the list or type one first.', true); return; }
+      setLoading('btnSaveDestination', true);
+      try {
+        const data = await apiPost('/api/connect/destination', { city });
+        setStatus('destination', data.city || '✓', true);
+        showFeedback(data.message || 'Destination saved.');
+        if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+      } catch (e) {
+        showFeedback(e.message, true);
+        setStatus('destination', '', false);
+      } finally { setLoading('btnSaveDestination', false); }
+    });
+
+    // Precise GPS location
     document.getElementById('btnLocation').addEventListener('click', () => {
       if (!sessionOk()) { showSessionBanner(false); return; }
       if (!navigator.geolocation) { showFeedback('Location not supported on this device.', true); return; }
@@ -520,7 +610,11 @@
               lng: pos.coords.longitude,
             });
             setStatus('location', data.city || '✓', true);
-            showFeedback(data.message || 'Location saved.');
+            const gpsMeta = document.getElementById('gpsMeta');
+            if (data.lat != null && data.lng != null) {
+              gpsMeta.textContent = `GPS: ${data.lat.toFixed(4)}, ${data.lng.toFixed(4)}${data.city ? ` · near ${data.city}` : ''}`;
+            }
+            showFeedback(data.message || 'Precise location saved.');
             if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
           } catch (e) {
             showFeedback(e.message, true);
@@ -579,9 +673,19 @@
     bindFile('obsidianFile', 'obsidianText');
 
     // Nav
-    document.getElementById('continueBtn').addEventListener('click', () => showScreen('intro'));
-    document.getElementById('skipConnectBtn').addEventListener('click', () => showScreen('intro'));
-    document.getElementById('startBtn').addEventListener('click', () => { showScreen('swipe'); renderCard(); });
+    document.getElementById('continueBtn').addEventListener('click', () => {
+      if (!requireSession('continue')) return;
+      showScreen('intro');
+    });
+    document.getElementById('skipConnectBtn').addEventListener('click', () => {
+      if (!requireSession('skip')) return;
+      showScreen('intro');
+    });
+    document.getElementById('startBtn').addEventListener('click', () => {
+      if (!requireSession('swipe')) return;
+      showScreen('swipe');
+      renderCard();
+    });
 
     // Swipe deck
     async function loadDeck() {
@@ -638,6 +742,12 @@
     }
 
     async function finish() {
+      if (!requireSession('finish')) {
+        showScreen('done');
+        document.getElementById('doneStatus').textContent =
+          'Could not verify Telegram session. Send /start in chat, then open from the keyboard button.';
+        return;
+      }
       showScreen('done');
       const st = document.getElementById('doneStatus');
       const recapEl = document.getElementById('recapBox');
@@ -678,7 +788,19 @@
         const res = await fetch(`/api/connect/status?initData=${encodeURIComponent(initData)}${u}${r}`);
         const data = await res.json();
         for (const s of data.connectedSources || []) setStatus(s.id, '✓', true);
-        if (data.location?.city) setStatus('location', data.location.city, true);
+        if (data.destinationCity) {
+          setStatus('destination', data.destinationCity, true);
+          document.getElementById('cityCustom').value = data.destinationCity;
+          const select = document.getElementById('citySelect');
+          if ([...select.options].some((o) => o.value === data.destinationCity)) {
+            select.value = data.destinationCity;
+          }
+        }
+        if (data.location?.city) {
+          setStatus('location', data.location.city, true);
+          const gpsMeta = document.getElementById('gpsMeta');
+          gpsMeta.textContent = `GPS: ${data.location.lat.toFixed(4)}, ${data.location.lng.toFixed(4)} · near ${data.location.city}`;
+        }
         if (!data.googleConfigured) {
           showFeedback('Almost there — paste your Google Client Secret into .env and add the redirect URI in Cloud Console (see chat).', true);
         }
@@ -691,12 +813,16 @@
         await waitForTelegram();
         const ok = sessionOk();
         showSessionBanner(ok);
-        if (ok) loadStatus();
+        if (ok) {
+          loadCities();
+          loadStatus();
+        }
         return;
       }
       const ok = await waitForTelegram();
       showSessionBanner(ok);
       loadDeck();
+      loadCities();
       if (ok) loadStatus();
     })();
   </script>

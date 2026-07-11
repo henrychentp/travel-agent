@@ -3,6 +3,7 @@ import type { TravellerProfile } from "./schemas.js";
 /** True when the traveller has enough saved taste to personalize suggestions. */
 export function hasTasteProfile(profile: TravellerProfile | null): boolean {
   if (!profile) return false;
+  if (profile.destinationCity) return true;
   if (profile.location?.city) return true;
   if (profile.connectedSources?.some((s) => s.status === "connected")) return true;
   if (Object.keys(profile.confidence).length > 0) return true;
@@ -13,6 +14,7 @@ export function hasTasteProfile(profile: TravellerProfile | null): boolean {
 /** Compact profile snapshot for LLM prompts (Telegram concierge, recaps). */
 export function profilePromptContext(profile: TravellerProfile): string {
   return JSON.stringify({
+    destinationCity: profile.destinationCity ?? null,
     location: profile.location ?? null,
     connectedSources: profile.connectedSources?.map((s) => s.id) ?? [],
     pace: profile.pace,

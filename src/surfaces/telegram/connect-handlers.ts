@@ -2,10 +2,12 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Mem0Client } from "../../shared/mem0-client.js";
 import { CONNECTORS } from "../../shared/import-schemas.js";
 import {
+  applyDestinationCity,
   applyImport,
   buildLocation,
   reverseGeocode,
 } from "../../skills/onboarding/import-context.js";
+import { DESTINATION_CITIES } from "../../shared/destination-cities.js";
 import {
   exchangeGoogleCode,
   fetchGoogleSignals,
@@ -93,12 +95,51 @@ export async function handleConnectLocation(
 
   json(res, 200, {
     ok: true,
+    lat: location.lat,
+    lng: location.lng,
     city: location.city,
     country: location.country,
     message: location.city
-      ? `Location saved — you're in ${location.city}.`
-      : "Location saved.",
+      ? `Precise location saved — detected near ${location.city}.`
+      : "Precise location saved.",
   });
+}
+
+export async function handleConnectDestination(
+  req: IncomingMessage,
+  res: ServerResponse,
+  mem0: Mem0Client,
+) {
+  const raw = await readBody(req);
+  const { initData, unsafeUser, resumeToken, city } = JSON.parse(raw) as {
+    initData: string;
+    unsafeUser?: TelegramWebAppUser;
+    resumeToken?: string;
+    city: string;
+  };
+
+  const user = requireUser(initData, unsafeUser, res, resumeToken);
+  if (!user) return;
+
+  try {
+    const profile = await applyDestinationCity(telegramUserId(user), city, { mem0 });
+    json(res, 200, {
+      ok: true,
+      city: profile.destinationCity,
+      message: `Destination saved — ${profile.destinationCity}.`,
+    });
+  } catch (err) {
+    json(res, 400, {
+      error: err instanceof Error ? err.message : "Invalid city",
+    });
+  }
+}
+
+export async function handleConnectCities(
+  _req: IncomingMessage,
+  res: ServerResponse,
+) {
+  json(res, 200, { cities: DESTINATION_CITIES });
 }
 
 export async function handleConnectPaste(
@@ -228,6 +269,7 @@ export async function handleConnectStatus(
   json(res, 200, {
     connectedSources: profile?.connectedSources ?? [],
     location: profile?.location ?? null,
+    destinationCity: profile?.destinationCity ?? null,
     googleConfigured: getGoogleEnv() !== null,
   });
 }

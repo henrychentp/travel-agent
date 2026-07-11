@@ -10,6 +10,7 @@ import {
   getWebAppUrl,
   isGoogleConfigured,
   isMem0Configured,
+  getTelegramAllowUnsafeUser,
 } from "../../shared/env.js";
 import {
   SWIPE_DECK,
@@ -21,6 +22,8 @@ import {
   type SwipeInput,
 } from "../../skills/onboarding/swipe.js";
 import {
+  handleConnectDestination,
+  handleConnectCities,
   handleConnectLocation,
   handleConnectPaste,
   handleConnectSources,
@@ -140,6 +143,7 @@ export async function handleHttpRequest(
           webAppUrl: getWebAppUrl(),
           googleConfigured: isGoogleConfigured(),
           mem0Configured: isMem0Configured(),
+          allowUnsafeUser: getTelegramAllowUnsafeUser(),
           vercel: process.env.VERCEL === "1",
         }),
       );
@@ -182,6 +186,16 @@ export async function handleHttpRequest(
 
     if (req.method === "POST" && url.pathname === "/api/connect/location") {
       await handleConnectLocation(req, res, mem0);
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/connect/destination") {
+      await handleConnectDestination(req, res, mem0);
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/connect/cities") {
+      await handleConnectCities(req, res);
       return;
     }
 

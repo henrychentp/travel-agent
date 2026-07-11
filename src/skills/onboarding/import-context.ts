@@ -1,4 +1,8 @@
 import type { Mem0Client } from "../../shared/mem0-client.js";
+import {
+  isValidCityName,
+  normalizeCityName,
+} from "../../shared/destination-cities.js";
 import type {
   ConnectedSource,
   OnboardingAnswers,
@@ -6,6 +10,7 @@ import type {
   UserId,
 } from "../../shared/schemas.js";
 import type { ImportPayload, TravellerLocation } from "../../shared/import-schemas.js";
+import { emptyProfile } from "../../shared/schemas.js";
 import { onboardUser, type OnboardingDeps } from "./index.js";
 
 /** Map imported context into TravellerProfile fields + notes. */
@@ -15,9 +20,9 @@ export function importToAnswers(payload: ImportPayload): OnboardingAnswers {
 
   if (payload.data.location) {
     const loc = payload.data.location;
-    answers.identity ??= {};
-    if (loc.city) answers.identity.homeCity = loc.city;
-    notes.push(`current location: ${loc.city ?? "unknown"}, ${loc.country ?? ""}`.trim());
+    notes.push(
+      `precise location: ${loc.city ?? "unknown"}, ${loc.country ?? ""} (${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)})`.trim(),
+    );
   }
 
   for (const ev of payload.data.calendar ?? []) {
@@ -96,7 +101,6 @@ export async function applyImport(
 
   if (payload.data.location) {
     profile.location = payload.data.location;
-    profile.confidence.identity = 0.9;
   } else {
     profile.confidence.motivations = Math.min(
       profile.confidence.motivations ?? 0.75,
@@ -110,6 +114,34 @@ export async function applyImport(
     detail: JSON.stringify(payload.data).slice(0, 500),
   });
 
+  profile.updatedAt = stampedAt;
+  await deps.mem0.saveProfile(profile);
+  return profile;
+}
+
+/** Persist a traveller-selected destination city (dropdown or free text). */
+export async function applyDestinationCity(
+  userId: UserId,
+  city: string,
+  deps: OnboardingDeps,
+): Promise<TravellerProfile> {
+  const normalized = normalizeCityName(city);
+  if (!isValidCityName(normalized)) {
+    throw new Error("Enter a valid city name (2–80 characters).");
+  }
+
+  const now = deps.now ?? (() => new Date().toISOString());
+  const stampedAt = now();
+
+  const existing = await deps.mem0.getProfile(userId);
+  const profile = existing ?? emptyProfile(userId, stampedAt);
+  profile.destinationCity = normalized;
+  profile.notes.push(`destination city: ${normalized}`);
+  profile.evidence.push({
+    at: stampedAt,
+    signal: "destination-selected",
+    detail: normalized,
+  });
   profile.updatedAt = stampedAt;
   await deps.mem0.saveProfile(profile);
   return profile;

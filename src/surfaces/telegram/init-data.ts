@@ -100,8 +100,11 @@ export function resolveTelegramUser(
   unsafeUser?: TelegramWebAppUser | null,
   resumeToken?: string | null,
 ): TelegramWebAppUser | null {
-  if (initData && validateInitData(initData, botToken)) {
-    return parseTelegramUser(initData);
+  if (initData?.trim()) {
+    if (validateInitData(initData, botToken)) {
+      return parseTelegramUser(initData);
+    }
+    // Stale or cross-bot initData — fall through to resume/unsafe rather than hard-fail.
   }
   if (resumeToken) {
     const userId = verifyResumeToken(resumeToken, botToken);

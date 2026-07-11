@@ -113,7 +113,11 @@ async function sendFinalAssets(chatId: number, itinerary: string, narration: str
 }
 
 function demoRequest(profile: TravellerProfile): TripRequest {
-  const destination = profile.location?.city ?? profile.identity.homeCity ?? "Lisbon";
+  const destination =
+    profile.destinationCity ??
+    profile.location?.city ??
+    profile.identity.homeCity ??
+    "Lisbon";
   const start = new Date();
   start.setUTCDate(start.getUTCDate() + 21);
   const startDate = start.toISOString().slice(0, 10);
@@ -198,8 +202,11 @@ export async function syncTelegramMenuButton(): Promise<void> {
 async function handleStart(chatId: number, firstName: string, userId: string) {
   const profile = await mem0.getProfile(userId);
   const saved = hasTasteProfile(profile);
+  const destinationLine = profile?.destinationCity
+    ? `\n\nDestination on file: *${profile.destinationCity}*`
+    : "";
   const locationLine = profile?.location?.city
-    ? `\n\nI already have you in *${profile.location.city}*`
+    ? `\nPrecise location: *${profile.location.city}*`
     : "";
   const connected =
     profile?.connectedSources?.filter((s) => s.status === "connected").map((s) => s.id) ?? [];
@@ -213,7 +220,7 @@ async function handleStart(chatId: number, firstName: string, userId: string) {
     chatId,
     `Welcome to *Hermes*, ${firstName}.\n\n` +
       `I suggest what to do when you land somewhere new with a few hours free — ` +
-      `based on *your* taste, calendar, and location.${saved ? locationLine + connectedLine : ""}\n\n` +
+      `based on *your* taste, calendar, and location.${saved ? destinationLine + locationLine + connectedLine : ""}\n\n` +
       (saved
         ? `Tell me where you are and how much time you have, or tap below to refresh your profile.`
         : `Tap *🎯 Build taste profile* to connect Google, share your location, then swipe your preferences.`),

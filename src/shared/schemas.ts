@@ -300,8 +300,10 @@ export interface TravellerProfile {
   /** Passively-observed behaviour (see checklist "signals over time"). */
   evidence: EvidenceEntry[];
 
-  /** Live device location (updated on each connect flow). */
+  /** Live device location (GPS coordinates, updated on each detect). */
   location?: TravellerLocation;
+  /** Traveller-selected destination city (dropdown or free text). */
+  destinationCity?: string;
   /** Third-party connectors the traveller has linked. */
   connectedSources?: ConnectedSource[];
 
