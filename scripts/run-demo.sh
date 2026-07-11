@@ -3,6 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PORT="${PORT:-8787}"
+export WEBAPP_URL="${WEBAPP_URL:-http://127.0.0.1:${PORT}}"
 LOG_TUNNEL="/tmp/cloudflared-hermes.log"
 PID_TUNNEL="/tmp/cloudflared-hermes.pid"
 PID_SERVER="/tmp/hermes-server.pid"
@@ -41,7 +42,7 @@ stop_tunnel
 sleep 1
 
 echo "Starting server on :$PORT…"
-setsid node --env-file=.env dist/src/surfaces/telegram/server.js >> /tmp/hermes-server.log 2>&1 < /dev/null &
+nohup node --env-file=.env dist/src/surfaces/telegram/server.js >> /tmp/hermes-server.log 2>&1 < /dev/null &
 echo $! > "$PID_SERVER"
 sleep 2
 
@@ -53,7 +54,7 @@ fi
 
 echo "Starting Cloudflare tunnel…"
 rm -f "$LOG_TUNNEL"
-setsid npx --yes cloudflared tunnel --url "http://127.0.0.1:${PORT}" >> "$LOG_TUNNEL" 2>&1 < /dev/null &
+nohup npx --yes cloudflared tunnel --url "http://127.0.0.1:${PORT}" >> "$LOG_TUNNEL" 2>&1 < /dev/null &
 echo $! > "$PID_TUNNEL"
 
 URL=""
@@ -107,7 +108,7 @@ fi
 echo "Syncing Telegram menu button…"
 stop_server
 sleep 1
-setsid node --env-file=.env dist/src/surfaces/telegram/server.js >> /tmp/hermes-server.log 2>&1 < /dev/null &
+nohup node --env-file=.env dist/src/surfaces/telegram/server.js >> /tmp/hermes-server.log 2>&1 < /dev/null &
 echo $! > "$PID_SERVER"
 sleep 2
 
