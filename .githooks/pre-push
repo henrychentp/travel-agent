@@ -15,4 +15,9 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   fi
 done
 
+if [ ! -x node_modules/.bin/tsc ]; then
+  echo "Dependencies are not installed. Run npm ci before pushing."
+  exit 1
+fi
+
 npm test
