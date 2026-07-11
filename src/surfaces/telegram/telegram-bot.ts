@@ -214,7 +214,7 @@ function fallbackItinerary(request: TripRequest): string {
 }
 
 async function oneMinuteBriefing(plan: TripPlan, profile: TravellerProfile): Promise<string> {
-  const fallback = `Welcome to your ${plan.request.destination} itinerary. Your plan keeps your confirmed travel and dinner plans protected, with a measured pace around the experiences that suit you best. Each day leaves room for practical transfers and a proper pause, so the trip feels effortless rather than over-scheduled. Check the attached PDF for the full plan, and make any booking decisions only when you are ready.`;
+  const fallback = fallbackBriefing(plan.request.destination);
   try {
     return await chat([
       { role: "system", content: "You are Hermes Tour Guide. Write a warm, practical travel voice memo of 140 to 155 words from finalized itinerary facts and the traveller's saved taste. Never invent a booking, availability, price, or opening hour." },
@@ -223,6 +223,10 @@ async function oneMinuteBriefing(plan: TripPlan, profile: TravellerProfile): Pro
   } catch {
     return fallback;
   }
+}
+
+function fallbackBriefing(destination: string): string {
+  return `Welcome to your ${destination} itinerary. Your plan keeps your confirmed travel and dinner plans protected, with a measured pace around the experiences that suit you best. Each day leaves room for practical transfers and a proper pause, so the trip feels effortless rather than over-scheduled. Check the attached PDF for the full plan, and make any booking decisions only when you are ready.`;
 }
 
 /** Run the post-onboarding demo from either a Telegram callback or the Mini App API. */
@@ -242,13 +246,24 @@ export async function runOnboardingDemo(chatId: number, userId: string): Promise
   await sendMessage(chatId, "Your taste profile is saved. I’m researching and building your personalised demo itinerary now…");
   const request = demoRequest(profile!);
   let itinerary: string;
+  let plan: TripPlan | undefined;
   try {
-    itinerary = formatItinerary(await hermes.plan(userId, request));
+    plan = await hermes.plan(userId, request);
+    itinerary = formatItinerary(plan);
   } catch (error) {
     console.error("Hermes demo planning failed; sending fallback itinerary", error);
     itinerary = fallbackItinerary(request);
   }
   await sendMessage(chatId, itinerary);
+  try {
+    const narration = plan
+      ? await oneMinuteBriefing(plan, profile!)
+      : fallbackBriefing(request.destination);
+    await sendFinalAssets(chatId, itinerary, narration);
+  } catch (error) {
+    console.error("Hermes demo asset delivery failed", error);
+    await sendMessage(chatId, deliveryFailureMessage(error));
+  }
 }
 
 function webAppKeyboard() {
