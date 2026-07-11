@@ -13,7 +13,7 @@ import { join, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createMem0Client } from "../../shared/mem0-client.js";
 import { chat } from "../../shared/llm.js";
-import { getOnboardingModel, getTelegramBotToken, getWebAppUrl, getServerPort, isGoogleConfigured, getTelegramAllowUnsafeUser } from "../../shared/env.js";
+import { getOnboardingModel, getTelegramBotToken, getWebAppUrl, getServerPort, isGoogleConfigured, getTelegramAllowUnsafeUser, useTelegramWebhook } from "../../shared/env.js";
 import {
   SWIPE_DECK,
   SWIPE_ROUNDS,
@@ -321,6 +321,14 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "POST" && url.pathname === "/api/telegram/webhook") {
+      const raw = await readBody(req);
+      const update = JSON.parse(raw) as Record<string, unknown>;
+      await processUpdate(update);
+      res.writeHead(200).end("ok");
+      return;
+    }
+
     if (req.method === "GET" && url.pathname === "/api/onboarding/deck") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ cards: SWIPE_DECK, rounds: SWIPE_ROUNDS }));
@@ -376,17 +384,27 @@ const server = createServer(async (req, res) => {
 });
 
 const port = getServerPort();
-server.listen(port, async () => {
-  console.log(`Hermes server  http://localhost:${port}`);
+server.listen(port, "0.0.0.0", async () => {
+  console.log(`Hermes server  http://0.0.0.0:${port}`);
   console.log(`Mini App URL   ${getWebAppUrl()}`);
   console.log(`Unsafe user    ${getTelegramAllowUnsafeUser() ? "enabled" : "disabled"}`);
   console.log(`Google OAuth   ${isGoogleConfigured() ? "configured" : "NOT SET — add GOOGLE_CLIENT_ID/SECRET"}`);
   try {
-    await tgApi("deleteWebhook", { drop_pending_updates: true });
-    console.log(`Telegram bot   polling (webhook cleared)`);
+    if (useTelegramWebhook()) {
+      const webhookUrl = `${getWebAppUrl()}/api/telegram/webhook`;
+      await tgApi("setWebhook", {
+        url: webhookUrl,
+        allowed_updates: ["message"],
+        drop_pending_updates: true,
+      });
+      console.log(`Telegram bot   webhook → ${webhookUrl}`);
+    } else {
+      await tgApi("deleteWebhook", { drop_pending_updates: true });
+      console.log(`Telegram bot   polling (local dev)`);
+      poll();
+    }
     await syncTelegramMenuButton();
   } catch (err) {
-    console.warn("Could not clear webhook:", err);
+    console.warn("Telegram setup error:", err);
   }
-  poll();
 });

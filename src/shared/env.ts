@@ -32,10 +32,36 @@ export function getTelegramBotToken(): string {
   return requireEnv("TELEGRAM_BOT_TOKEN");
 }
 
-/** Public HTTPS URL where the taste-swipe mini app is hosted (must match server). */
+/** Resolve public HTTPS base URL (mini app + OAuth). */
+export function resolvePublicBaseUrl(): string | null {
+  const explicit = process.env.WEBAPP_URL?.trim();
+  if (explicit) return explicit.replace(/\/$/, "");
+
+  const railway = process.env.RAILWAY_PUBLIC_DOMAIN?.trim();
+  if (railway) return `https://${railway.replace(/\/$/, "")}`;
+
+  const vercel = process.env.VERCEL_URL?.trim();
+  if (vercel) return `https://${vercel.replace(/\/$/, "")}`;
+
+  const render = process.env.RENDER_EXTERNAL_URL?.trim();
+  if (render) return render.replace(/\/$/, "");
+
+  return null;
+}
+
+/** Public HTTPS URL where the taste-swipe mini app is hosted. */
 export function getWebAppUrl(): string {
-  const url = requireEnv("WEBAPP_URL").replace(/\/$/, "");
+  const url = resolvePublicBaseUrl();
+  if (!url) {
+    throw new Error(
+      "Missing WEBAPP_URL. Set it in .env for local dev, or deploy to Railway/Render/Vercel which inject a public domain.",
+    );
+  }
   return url;
+}
+
+export function useTelegramWebhook(): boolean {
+  return process.env.TELEGRAM_USE_WEBHOOK === "true";
 }
 
 export function getServerPort(): number {
@@ -47,9 +73,13 @@ export function getTelegramAllowUnsafeUser(): boolean {
 }
 
 export function isGoogleConfigured(): boolean {
-  return !!(
-    process.env.GOOGLE_CLIENT_ID?.trim() &&
-    process.env.GOOGLE_CLIENT_SECRET?.trim() &&
-    process.env.WEBAPP_URL?.trim()
-  );
+  try {
+    return !!(
+      process.env.GOOGLE_CLIENT_ID?.trim() &&
+      process.env.GOOGLE_CLIENT_SECRET?.trim() &&
+      resolvePublicBaseUrl()
+    );
+  } catch {
+    return false;
+  }
 }

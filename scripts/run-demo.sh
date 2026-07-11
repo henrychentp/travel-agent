@@ -30,7 +30,7 @@ stop_tunnel
 sleep 1
 
 echo "Starting server on :$PORT…"
-nohup node --env-file=.env dist/src/surfaces/telegram/server.js >> /tmp/hermes-server.log 2>&1 &
+setsid node --env-file=.env dist/src/surfaces/telegram/server.js >> /tmp/hermes-server.log 2>&1 < /dev/null &
 echo $! > "$PID_SERVER"
 sleep 2
 
@@ -42,7 +42,7 @@ fi
 
 echo "Starting Cloudflare tunnel…"
 rm -f "$LOG_TUNNEL"
-nohup npx --yes cloudflared tunnel --url "http://127.0.0.1:${PORT}" >> "$LOG_TUNNEL" 2>&1 &
+setsid npx --yes cloudflared tunnel --url "http://127.0.0.1:${PORT}" >> "$LOG_TUNNEL" 2>&1 < /dev/null &
 echo $! > "$PID_TUNNEL"
 
 URL=""
@@ -96,7 +96,7 @@ fi
 echo "Syncing Telegram menu button…"
 stop_server
 sleep 1
-nohup node --env-file=.env dist/src/surfaces/telegram/server.js >> /tmp/hermes-server.log 2>&1 &
+setsid node --env-file=.env dist/src/surfaces/telegram/server.js >> /tmp/hermes-server.log 2>&1 < /dev/null &
 echo $! > "$PID_SERVER"
 sleep 2
 

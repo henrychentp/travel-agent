@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: hermes-travel-agent
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TELEGRAM_USE_WEBHOOK
+        value: "true"
+      - key: TELEGRAM_ALLOW_UNSAFE_USER
+        value: "true"
+      - key: PORT
+        value: "8787"
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false

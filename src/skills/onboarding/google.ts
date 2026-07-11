@@ -1,4 +1,5 @@
 import type { ISODate, UserId } from "../../shared/schemas.js";
+import { resolvePublicBaseUrl } from "../../shared/env.js";
 
 const tokenStore = new Map<UserId, { accessToken: string; refreshToken?: string; at: ISODate }>();
 
@@ -9,7 +10,7 @@ export function getGoogleEnv(): {
 } | null {
   const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
-  const base = process.env.WEBAPP_URL?.trim().replace(/\/$/, "");
+  const base = resolvePublicBaseUrl();
   if (!clientId || !clientSecret || !base) return null;
   return {
     clientId,
