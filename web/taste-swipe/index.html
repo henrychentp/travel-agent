@@ -409,6 +409,8 @@
     async function bootstrapSession() {
       captureFromTelegram();
       restoreSession();
+      if (!tg) return false;
+
       const tryBootstrap = async (payload) => {
         const res = await fetch('/api/session/bootstrap', {
           method: 'POST',
@@ -419,6 +421,7 @@
         if (!res.ok) return false;
         if (data.resume) {
           resumeToken = data.resume;
+          if (data.firstName && unsafeUser) unsafeUser.first_name = data.firstName;
           persistSession();
           return true;
         }
@@ -432,7 +435,7 @@
         sessionStorage.removeItem(SESSION_INIT);
         if (await tryBootstrap(authPayload())) return true;
       }
-      return sessionOk();
+      return false;
     }
 
     function showScreen(id) {
@@ -459,10 +462,10 @@
     }
 
     function sessionOk() {
-      return !!(initData || unsafeUser?.id || resumeToken);
+      return !!resumeToken || !!(tg && (initData || unsafeUser?.id));
     }
 
-    async function waitForTelegram(maxMs = 10000) {
+    async function waitForTelegram(maxMs = 15000) {
       restoreSession();
       if (captureFromTelegram() || sessionOk()) return true;
 

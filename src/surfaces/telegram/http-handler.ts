@@ -161,9 +161,13 @@ export async function handleHttpRequest(
     }
 
     if (req.method === "POST" && url.pathname === "/api/telegram/webhook") {
-      const raw = await readBody(req);
-      const update = JSON.parse(raw) as Record<string, unknown>;
-      await processTelegramUpdate(update);
+      try {
+        const raw = await readBody(req);
+        const update = JSON.parse(raw) as Record<string, unknown>;
+        await processTelegramUpdate(update);
+      } catch (err) {
+        console.error("Webhook update error:", err);
+      }
       res.writeHead(200).end("ok");
       return;
     }
