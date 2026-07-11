@@ -167,7 +167,14 @@ async function oneMinuteBriefing(plan: TripPlan, profile: TravellerProfile): Pro
 }
 
 async function runOnboardingDemo(chatId: number, userId: string): Promise<void> {
-  const profile = await mem0.getProfile(userId);
+  // Hosted Mem0 writes are asynchronous. The Mini App save and Telegram
+  // callback may land in different processes, so wait briefly for the newly
+  // persisted profile rather than falling back to a fixture.
+  let profile = await mem0.getProfile(userId);
+  for (let attempt = 0; !hasTasteProfile(profile) && attempt < 5; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    profile = await mem0.getProfile(userId);
+  }
   if (!hasTasteProfile(profile)) {
     await sendMessage(chatId, "Your profile was not ready yet. Please reopen *🎯 Build taste profile* and complete the swipes.", { reply_markup: webAppKeyboard() });
     return;
