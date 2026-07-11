@@ -231,9 +231,8 @@ async function handleStart(chatId: number, firstName: string, userId: string) {
   await sendMessage(
     chatId,
     `Welcome to *Hermes*, ${firstName}.\n\n` +
-      `Use these two commands to get started:${saved ? destinationLine + locationLine + connectedLine : ""}\n\n` +
-      `1. Send *onboarding* — build or refresh your taste profile.\n` +
-      `2. When the taste cards are saved, send *demo* — Hermes creates your itinerary.`,
+      `Tap *🎯 Build taste profile* to connect sources, set your destination, and swipe taste cards (~2 min).${saved ? destinationLine + locationLine + connectedLine : ""}\n\n` +
+      `When you tap *Back to Hermes chat*, I automatically research, build your itinerary, PDF, and voice memo — no extra commands needed.`,
     { reply_markup: webAppKeyboard() },
   );
 }
@@ -268,7 +267,21 @@ async function handleWebAppData(chatId: number, userId: string, data: string) {
   try {
     const payload = JSON.parse(data) as { type?: string; swipes?: SwipeInput[]; city?: string; location?: string; startDate?: string; endDate?: string; travellers?: number };
     if (payload.swipes?.length) await onboardFromSwipes(userId, payload.swipes, { mem0 });
-    if (payload.type === "onboarding-complete") await runOnboardingDemo(chatId, userId);
+    if (payload.type === "onboarding-complete") {
+      if (payload.city && payload.startDate && payload.endDate) {
+        await mem0.remember(
+          userId,
+          `trip-context:${JSON.stringify({
+            city: payload.city,
+            location: payload.location ?? payload.city,
+            startDate: payload.startDate,
+            endDate: payload.endDate,
+            travellers: payload.travellers ?? 1,
+          })}`,
+        );
+      }
+      await runOnboardingDemo(chatId, userId);
+    }
     if (payload.type === "trip-context" && payload.city && payload.startDate && payload.endDate) {
       await mem0.remember(userId, `trip-context:${JSON.stringify({ city: payload.city, location: payload.location ?? payload.city, startDate: payload.startDate, endDate: payload.endDate, travellers: payload.travellers ?? 1 })}`);
       await runOnboardingDemo(chatId, userId);
@@ -297,6 +310,11 @@ export async function processTelegramUpdate(update: Record<string, unknown>) {
 
   if (text.startsWith("/start")) {
     await handleStart(chatId, from.first_name, userId);
+    return;
+  }
+
+  if (/^demo$/i.test(text.trim())) {
+    await runOnboardingDemo(chatId, userId);
     return;
   }
 
