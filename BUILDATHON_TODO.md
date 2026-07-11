@@ -124,6 +124,7 @@ real-user/account actions.
 ## P6 — Management UI
 
 - [x] A non-engineer can start a trip from the UI and hand it once to the Telegram trip-start receiver, which enters the existing Director flow.
+- [x] Taste-profile swipe cards use curated Unsplash imagery with a readable text overlay.
 - [x] A non-engineer can approve or reject a patch from Telegram.
 - [ ] A non-engineer can pause/retry a run.
 - [x] A non-engineer can inspect recent Director traces and roll back the latest trip from Telegram.

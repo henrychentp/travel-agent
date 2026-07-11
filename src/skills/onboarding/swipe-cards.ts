@@ -10,11 +10,35 @@ export interface SwipeCard {
   subtitle: string;
   emoji: string;
   gradient: string;
+  imageUrl: string;
   category: ProfileCategory;
 }
 
+const UNSPLASH_IMAGES: Record<string, string> = {
+  "slow-cafe-morning": "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=1200&q=85",
+  "packed-sightseeing": "https://images.unsplash.com/photo-1486325212027-8081e485255e?auto=format&fit=crop&w=1200&q=85",
+  "neighborhood-wander": "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?auto=format&fit=crop&w=1200&q=85",
+  "spa-reset": "https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=1200&q=85",
+  "street-food": "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=1200&q=85",
+  "chef-table": "https://images.unsplash.com/photo-1515003197210-e0cd71810b5f?auto=format&fit=crop&w=1200&q=85",
+  "wine-bar": "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?auto=format&fit=crop&w=1200&q=85",
+  "familiar-chain": "https://images.unsplash.com/photo-1561758033-d89a9ad46330?auto=format&fit=crop&w=1200&q=85",
+  "iconic-landmark": "https://images.unsplash.com/photo-1467269204594-9661b134dd2b?auto=format&fit=crop&w=1200&q=85",
+  "hidden-courtyard": "https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&w=1200&q=85",
+  "contemporary-gallery": "https://images.unsplash.com/photo-1564399579883-451a5d44ec08?auto=format&fit=crop&w=1200&q=85",
+  "rooftop-sunset": "https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=1200&q=85",
+  "boutique-design": "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=85",
+  "business-efficient": "https://images.unsplash.com/photo-1511818966892-d7d671e672a2?auto=format&fit=crop&w=1200&q=85",
+  "walk-everywhere": "https://images.unsplash.com/photo-1526772662000-3f88f10405ff?auto=format&fit=crop&w=1200&q=85",
+  "private-transfer": "https://images.unsplash.com/photo-1493238792000-8113da705763?auto=format&fit=crop&w=1200&q=85",
+  "tourist-trap-queue": "https://images.unsplash.com/photo-1519671482749-fd09be7ccebf?auto=format&fit=crop&w=1200&q=85",
+  "early-alarm": "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=1200&q=85",
+  "noisy-hostel": "https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=1200&q=85",
+  "unsafe-feeling-area": "https://images.unsplash.com/photo-1519608487953-e999c86e7454?auto=format&fit=crop&w=1200&q=85",
+};
+
 /** Visual taste probes — tuned for day-trip / "few hours in a city" context. */
-export const SWIPE_DECK: SwipeCard[] = [
+const CARD_DEFINITIONS: Omit<SwipeCard, "imageUrl">[] = [
   // Round 1 — How you spend free hours
   {
     id: "slow-cafe-morning",
@@ -225,6 +249,11 @@ export const SWIPE_DECK: SwipeCard[] = [
     category: "comfortRisk",
   },
 ];
+
+export const SWIPE_DECK: SwipeCard[] = CARD_DEFINITIONS.map((card) => ({
+  ...card,
+  imageUrl: UNSPLASH_IMAGES[card.id]!,
+}));
 
 export const SWIPE_ROUNDS = [
   { id: 1, title: "Free hours", subtitle: "You've landed. A few hours to yourself." },

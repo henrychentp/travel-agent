@@ -199,6 +199,7 @@
       display: flex; flex-direction: column; justify-content: flex-end;
       box-shadow: 0 8px 32px rgba(26, 54, 93, 0.2); cursor: grab; touch-action: none;
       border: 2px solid rgba(255,255,255,0.2);
+      background-position: center; background-size: cover; background-repeat: no-repeat;
     }
     .card .emoji { font-size: 2.8rem; margin-bottom: auto; padding-top: 0.5rem; }
     .card h3 { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; color: #fff; }
@@ -605,7 +606,8 @@
 
       const el = document.createElement('div');
       el.className = 'card';
-      el.style.background = card.gradient;
+      el.style.backgroundColor = '#1a365d';
+      el.style.backgroundImage = `linear-gradient(180deg, rgba(10, 27, 48, 0.12) 0%, rgba(10, 27, 48, 0.84) 100%), url("${card.imageUrl}")`;
       el.innerHTML = `<div class="emoji">${card.emoji}</div><h3>${card.title}</h3><p>${card.subtitle}</p>`;
       c.appendChild(el);
       bindDrag(el);

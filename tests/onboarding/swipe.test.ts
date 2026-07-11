@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { swipesToAnswers } from "../../src/skills/onboarding/swipe.js";
+import { SWIPE_DECK } from "../../src/skills/onboarding/swipe-cards.js";
 
 test("swipes map to structured taste profile", () => {
   const answers = swipesToAnswers([
@@ -24,4 +25,8 @@ test("rejecting familiar chain marks low adventurousness", () => {
     { cardId: "familiar-chain", direction: "left" },
   ]);
   assert.ok(answers.food?.cuisineAvoids?.includes("chains"));
+});
+
+test("every swipe card has a curated Unsplash image", () => {
+  for (const card of SWIPE_DECK) assert.match(card.imageUrl, /^https:\/\/images\.unsplash\.com\//, card.id);
 });
