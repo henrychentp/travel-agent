@@ -243,8 +243,8 @@ async function handleStart(chatId: number, firstName: string, userId: string) {
 
   await sendMessage(
     chatId,
-    `Welcome to *Hermes*, ${firstName}.\n\n` +
-      `Use these two commands to get started:${saved ? destinationLine + locationLine + connectedLine : ""}\n\n` +
+      `Welcome to *Hermes*, ${firstName}.\n\n` +
+      `First, run */onboarding* to save your travel taste. Then run */demo* to create your itinerary.${saved ? destinationLine + locationLine + connectedLine : ""}\n\n` +
       `1. Send */onboarding* — build or refresh your taste profile.\n` +
       `2. When the taste cards are saved, send */demo* — Hermes creates your itinerary.`,
     { reply_markup: webAppKeyboard() },

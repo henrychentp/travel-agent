@@ -930,6 +930,7 @@
     }
 
     async function finish() {
+      let profileSaved = false;
       const ok = await requireSession();
       if (!ok) {
         showScreen('done');
@@ -947,6 +948,7 @@
       st.textContent = 'Saving your taste profile to Mem0…';
       try {
         const data = await apiPost('/api/onboarding/swipes', { swipes });
+        profileSaved = true;
         st.textContent = data.mem0Saved
           ? 'Taste profile saved — Hermes is building your personalised demo in chat…'
           : 'Profile saved for this session — Hermes is building your personalised demo in chat…';
@@ -960,7 +962,9 @@
         st.textContent = 'Done — your demo itinerary is being sent in the Hermes chat.';
         closeBtn.style.display = 'block';
       } catch (e) {
-        st.textContent = e.message || 'Could not save. Try again.';
+        st.textContent = profileSaved
+          ? `Your taste profile is saved, but Hermes could not create the required PDF and voice demo: ${e.message || 'retry after delivery is fixed.'}`
+          : (e.message || 'Could not save. Try again.');
         retryBtn.style.display = 'block';
       }
     }

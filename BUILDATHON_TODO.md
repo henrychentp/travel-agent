@@ -125,11 +125,11 @@ real-user/account actions.
 
 - [x] A non-engineer can start a trip from the UI and hand it once to the Telegram trip-start receiver, which enters the existing Director flow.
 - [x] Taste-profile swipe cards use curated Unsplash imagery with a readable text overlay.
-- [ ] The Telegram welcome flow directs travellers to two explicit commands:
+- [x] The Telegram welcome flow directs travellers to two explicit commands:
       `onboarding` to save taste to Mem0, then `demo` to launch itinerary,
       PDF, and ~1-minute voice delivery.
-      briefing. Code path is implemented; live proof requires matching Vercel
-      Telegram/Mem0/ElevenLabs environment variables and deployment.
+      The Hermes direct-bot path has verified PDF and ElevenLabs delivery;
+      Vercel is optional for the onboarding Mini App.
 - [x] A non-engineer can approve or reject a patch from Telegram.
 - [x] Director supports spontaneous same-day plans: LLM extracts city/date/time,
       schedules the next 6–8 hours with buffers, and never plans past 22:00 local.
@@ -145,7 +145,9 @@ real-user/account actions.
 - [x] **Convex:** main persistent backend for state and run logs.
 - [x] **Cloudflare:** deployed Trip Board and authenticated Worker API.
 - [ ] **Linkup:** live Scout search materially changes the plan.
-- [ ] **ElevenLabs:** final-delivery pipeline now gates Tour Guide narration, PDF, and voice until itinerary finalisation; live voice credential and Telegram proof remain pending.
+- [x] **ElevenLabs:** Hermes directly delivers the final itinerary PDF and
+      ElevenLabs narration through Telegram after finalisation; verified
+      end-to-end on 2026-07-11 without Vercel.
 - [ ] **Dodo Payments:** live checkout for a genuine premium concierge offer.
 - [ ] **Wispr Flow:** dictate 500+ genuine words and retain the stats screenshot.
 
