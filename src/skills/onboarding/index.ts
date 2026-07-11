@@ -2,16 +2,20 @@
  * Skill 1 · Onboarding & Memory  (Person 1)
  *
  * Learns taste and constraints from the traveller, then writes durable
- * preferences to Mem0.
+ * preferences to Mem0. Populates the TravellerProfile defined by
+ * docs/traveller-taste-profile-checklist.md.
  *
  *   onboardUser(userId, answers) -> TravellerProfile
  */
 
 import type { Mem0Client } from "../../shared/mem0-client.js";
-import type {
-  OnboardingAnswers,
-  TravellerProfile,
-  UserId,
+import {
+  emptyProfile,
+  PROFILE_CATEGORIES,
+  type OnboardingAnswers,
+  type ProfileCategory,
+  type TravellerProfile,
+  type UserId,
 } from "../../shared/schemas.js";
 
 export interface OnboardingDeps {
@@ -21,10 +25,15 @@ export interface OnboardingDeps {
 }
 
 /**
- * Turn raw onboarding answers into a durable TravellerProfile and persist it.
+ * Merge onboarding answers into the durable profile and persist it.
  *
- * TODO(Person 1): use an LLM to enrich free-text answers into structured taste,
- * and to reconcile with any existing profile instead of overwriting.
+ * - Each provided category is shallow-merged over any existing values.
+ * - Provided categories are marked as `stated` (confidence 1.0) and stamped
+ *   with a last-confirmed timestamp, so the planner can tell explicit answers
+ *   from inferred ones.
+ *
+ * TODO(Person 1): use an LLM to turn free-text answers into structured tags,
+ * and to reconcile conflicting answers rather than letting the newest win.
  */
 export async function onboardUser(
   userId: UserId,
@@ -32,25 +41,37 @@ export async function onboardUser(
   deps: OnboardingDeps,
 ): Promise<TravellerProfile> {
   const now = deps.now ?? (() => new Date().toISOString());
+  const stampedAt = now();
 
   const existing = await deps.mem0.getProfile(userId);
+  const profile = existing ?? emptyProfile(userId, stampedAt);
 
-  const profile: TravellerProfile = {
-    userId,
-    homeCity: answers.homeCity ?? existing?.homeCity,
-    budgetTier: answers.budgetTier ?? existing?.budgetTier ?? "comfort",
-    pace: answers.pace ?? existing?.pace ?? "balanced",
-    interests: answers.interests ?? existing?.interests ?? [],
-    dietary: answers.dietary ?? existing?.dietary ?? [],
-    mobility: answers.mobility ?? existing?.mobility ?? [],
-    seatPreference:
-      answers.seatPreference ?? existing?.seatPreference ?? "no-preference",
-    notes: existing?.notes ?? [],
-    updatedAt: now(),
-  };
+  // Shallow-merge each provided category over the current profile.
+  for (const category of PROFILE_CATEGORIES) {
+    const incoming = answers[category];
+    if (!incoming) continue;
+    profile[category] = { ...profile[category], ...incoming } as never;
+    profile.confidence[category] = 1;
+    profile.lastConfirmed[category] = stampedAt;
+  }
 
-  if (answers.freeText) profile.notes.push(answers.freeText);
+  if (answers.notes?.length) {
+    profile.notes.push(...answers.notes);
+  }
+
+  profile.updatedAt = stampedAt;
 
   await deps.mem0.saveProfile(profile);
   return profile;
+}
+
+/**
+ * Which minimum-viable categories are still empty for a user — drives the
+ * onboarding questions worth asking next.
+ */
+export function missingCategories(
+  profile: TravellerProfile,
+  required: ProfileCategory[],
+): ProfileCategory[] {
+  return required.filter((c) => Object.keys(profile[c]).length === 0);
 }

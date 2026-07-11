@@ -12,7 +12,7 @@
  *   const client = new MemoryClient({ apiKey: process.env.MEM0_API_KEY });
  */
 
-import type { TravellerProfile, UserId } from "./schemas.js";
+import type { EvidenceEntry, TravellerProfile, UserId } from "./schemas.js";
 
 export interface Mem0Client {
   /** Load the durable profile for a user, or null if they are new. */
@@ -21,6 +21,8 @@ export interface Mem0Client {
   saveProfile(profile: TravellerProfile): Promise<void>;
   /** Append a free-form durable memory ("prefers late checkout"). */
   remember(userId: UserId, note: string): Promise<void>;
+  /** Record a passively-observed signal (revealed behaviour) on the profile. */
+  recordEvidence(userId: UserId, entry: EvidenceEntry): Promise<void>;
 }
 
 /** Default in-memory implementation. Replace with the Mem0 SDK in production. */
@@ -39,6 +41,13 @@ export class InMemoryMem0 implements Mem0Client {
     const p = this.store.get(userId);
     if (!p) return;
     p.notes.push(note);
+    this.store.set(userId, p);
+  }
+
+  async recordEvidence(userId: UserId, entry: EvidenceEntry): Promise<void> {
+    const p = this.store.get(userId);
+    if (!p) return;
+    p.evidence.push(entry);
     this.store.set(userId, p);
   }
 }
