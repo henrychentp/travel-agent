@@ -72,6 +72,23 @@ function scoutQueries(profile: TravellerProfile, ctx: ScoutContext): string[] {
   return [...new Set(queries)].slice(0, 3);
 }
 
+/** Keep link-search pages out of the itinerary; only schedule a real place. */
+function venueTitle(result: { name?: string; url?: string }): string | null {
+  const raw = result.name?.replace(/\s+/g, " ").trim();
+  if (!raw) return null;
+  const lowered = raw.toLowerCase();
+  if (/\b(best|top \d|things to do|guide|list|reviews?|updated \d{4}|restaurants? you need|attractions?)\b/.test(lowered)) {
+    return null;
+  }
+  // Search titles often wrap a venue in page boilerplate. Recover the actual
+  // place when it is explicitly named, without inventing a venue from a list.
+  const namedPlace = raw.match(/([A-Z][A-Za-zÀ-ÿ'’& ]{2,}(?:Museum|Gallery|Theatre|Market|Observatory|Zoo|Aquarium|Gardens?))/);
+  if (namedPlace?.[1]) return namedPlace[1].trim();
+  const parts = raw.split(/\s+-\s+/).map((part) => part.trim()).filter(Boolean);
+  const candidate = parts.at(-1) ?? raw;
+  return /^(visit|explore|galleries|museums?)$/i.test(candidate) ? null : candidate;
+}
+
 /** Local Scout backed by Linkup's real-time web search. */
 export class LinkupScout implements Scout {
   constructor(private readonly linkup: LinkupSearch) {}
@@ -92,7 +109,7 @@ export class LinkupScout implements Scout {
       return Boolean(key) && all.findIndex((candidate) => (candidate.url ?? candidate.name) === key) === index;
     });
     const options: Booking[] = uniqueResults.flatMap((result, index) => {
-      const title = result.name?.trim();
+      const title = venueTitle(result);
       if (!title) return [];
       return [{
         kind: "activity" as const,
