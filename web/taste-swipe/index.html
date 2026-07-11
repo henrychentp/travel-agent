@@ -456,7 +456,9 @@
   </div>
 
   <script>
-    const tg = window.Telegram?.WebApp;
+    // Telegram injects WebApp asynchronously in some clients. Keep this
+    // mutable and refresh it whenever we attempt to authenticate.
+    let tg = window.Telegram?.WebApp || null;
     let initData = '';
     let unsafeUser = null;
     let resumeToken = '';
@@ -509,6 +511,7 @@
     }
 
     function captureFromTelegram() {
+      tg = window.Telegram?.WebApp || tg;
       if (!tg) return false;
       tg.ready();
       tg.expand();
@@ -959,7 +962,7 @@
         }
         if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
         await apiPost('/api/onboarding/complete', { tripContext });
-        st.textContent = 'Done — return to Hermes chat and send demo for your personalised itinerary, PDF, and voice memo.';
+        st.textContent = 'Taste saved — Hermes is now creating your personalised itinerary, PDF, and voice memo in the chat.';
         closeBtn.style.display = 'block';
       } catch (e) {
         st.textContent = profileSaved
