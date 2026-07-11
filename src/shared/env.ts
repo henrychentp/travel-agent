@@ -40,6 +40,9 @@ export function resolvePublicBaseUrl(): string | null {
   const railway = process.env.RAILWAY_PUBLIC_DOMAIN?.trim();
   if (railway) return `https://${railway.replace(/\/$/, "")}`;
 
+  const vercelProd = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  if (vercelProd) return `https://${vercelProd.replace(/\/$/, "")}`;
+
   const vercel = process.env.VERCEL_URL?.trim();
   if (vercel) return `https://${vercel.replace(/\/$/, "")}`;
 
@@ -61,7 +64,9 @@ export function getWebAppUrl(): string {
 }
 
 export function useTelegramWebhook(): boolean {
-  return process.env.TELEGRAM_USE_WEBHOOK === "true";
+  return (
+    process.env.TELEGRAM_USE_WEBHOOK === "true" || process.env.VERCEL === "1"
+  );
 }
 
 export function getServerPort(): number {
@@ -70,6 +75,11 @@ export function getServerPort(): number {
 
 export function getTelegramAllowUnsafeUser(): boolean {
   return process.env.TELEGRAM_ALLOW_UNSAFE_USER === "true";
+}
+
+/** True when hosted Mem0 is configured (otherwise the in-memory stub is used). */
+export function isMem0Configured(): boolean {
+  return Boolean(process.env.MEM0_API_KEY?.trim());
 }
 
 export function isGoogleConfigured(): boolean {

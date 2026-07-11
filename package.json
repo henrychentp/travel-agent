@@ -6,6 +6,7 @@
   "private": true,
   "scripts": {
     "build": "tsc",
+    "build:vercel": "tsc && mkdir -p public && cp web/taste-swipe/index.html public/index.html",
     "typecheck": "tsc --noEmit",
     "test": "tsc && node --test \"dist/tests/**/*.test.js\"",
     "start": "tsc && node --env-file=.env dist/src/skills/onboarding/dev.js",
@@ -20,6 +21,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@vercel/node": "^5.0.0",
     "typescript": "^5.5.0"
   }
 }

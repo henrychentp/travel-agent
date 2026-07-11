@@ -67,8 +67,9 @@ Files: `src/core/workers/{scout,logistics,culture}.ts`, `src/tools/index.ts`,
       closures and travel-time matrices (so Person A's buffers have data).
 - [ ] **Culture (Agent C).** LLM-curated brief + optional ElevenLabs voice script
       in `CultureBrief.audioScript`.
-- [ ] **Memory backend.** Swap the in-memory Mem0 for the real Mem0 SDK; wire
-      `recordEvidence` to capture the checklist's passive signals.
+- [x] **Memory backend.** `HostedMem0Client` calls the Mem0 HTTP API when
+      `MEM0_API_KEY` is set; `recordEvidence` persists passive signals on the
+      traveller profile.
 - [ ] **Intake + output surfaces (from the Track 03 diagram).** Voice intake
       (Wispr Flow) → state mutations (Convex); on output, render the live app
       view + broadcast to a Telegram channel; add Langfuse/OTel tracing around
