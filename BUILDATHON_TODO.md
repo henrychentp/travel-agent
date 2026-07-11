@@ -137,7 +137,7 @@ real-user/account actions.
 - [x] **Convex:** main persistent backend for state and run logs.
 - [x] **Cloudflare:** deployed Trip Board and authenticated Worker API.
 - [ ] **Linkup:** live Scout search materially changes the plan.
-- [ ] **ElevenLabs:** voice request or spoken concierge response does real work.
+- [ ] **ElevenLabs:** final-delivery pipeline now gates Tour Guide narration, PDF, and voice until itinerary finalisation; live voice credential and Telegram proof remain pending.
 - [ ] **Dodo Payments:** live checkout for a genuine premium concierge offer.
 - [ ] **Wispr Flow:** dictate 500+ genuine words and retain the stats screenshot.
 
