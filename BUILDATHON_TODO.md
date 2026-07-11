@@ -37,7 +37,7 @@ These are the only remaining code tasks Henry should touch. They deliberately
 exclude Jerry's onboarding/profile work, Shritesh's live-worker/API work, and
 real-user/account actions.
 
-1. [ ] **Board trip-start handoff:** finish and verify the Board → one-time
+1. [x] **Board trip-start handoff:** finish and verify the Board → one-time
        Telegram link → existing Director flow, including a clear invalid-link
        path. Do not alter onboarding questions or profile extraction.
 2. [ ] **Run controls:** add safe pause/retry controls and immutable trace
@@ -123,7 +123,7 @@ real-user/account actions.
 
 ## P6 — Management UI
 
-- [ ] A non-engineer can start a trip from the UI.
+- [x] A non-engineer can start a trip from the UI and hand it once to the Telegram trip-start receiver, which enters the existing Director flow.
 - [x] A non-engineer can approve or reject a patch from Telegram.
 - [ ] A non-engineer can pause/retry a run.
 - [x] A non-engineer can inspect recent Director traces and roll back the latest trip from Telegram.
