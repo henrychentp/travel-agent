@@ -166,11 +166,17 @@ export async function handleConnectDestination(
     json(res, 200, {
       ok: true,
       city: profile.destinationCity,
+      mem0Saved: true,
       message: `Destination saved — ${profile.destinationCity}.`,
     });
   } catch (err) {
-    json(res, 400, {
-      error: err instanceof Error ? err.message : "Invalid city",
+    const message = err instanceof Error ? err.message : "Invalid city";
+    const status = /Mem0/i.test(message) ? 502 : 400;
+    json(res, status, {
+      error: /Mem0/i.test(message) ? "Could not save to Mem0" : message,
+      hint: /Mem0/i.test(message)
+        ? "Try again in a few seconds. If this persists, check MEM0_API_KEY on Vercel."
+        : undefined,
     });
   }
 }

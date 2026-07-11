@@ -97,7 +97,22 @@ async function handleSwipes(req: IncomingMessage, res: ServerResponse) {
 
   const userId = telegramUserId(tgUser);
   const existing = await mem0.getProfile(userId);
-  const { profile, recapFacts } = await onboardFromSwipes(userId, swipes, { mem0 });
+  let profile;
+  let recapFacts: string[];
+  let mem0Saved = false;
+  try {
+    ({ profile, recapFacts } = await onboardFromSwipes(userId, swipes, { mem0 }));
+    mem0Saved = Boolean(await mem0.getProfile(userId));
+  } catch (err) {
+    res.writeHead(502, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify({
+        error: "Could not save taste profile to Mem0",
+        hint: err instanceof Error ? err.message : "Mem0 write failed",
+      }),
+    );
+    return;
+  }
 
   let recap = formatSwipeRecap(recapFacts);
   try {
@@ -124,7 +139,7 @@ async function handleSwipes(req: IncomingMessage, res: ServerResponse) {
       ok: true,
       userId,
       recap,
-      mem0Saved: isMem0Configured(),
+      mem0Saved,
       saved: {
         destinationCity: profile.destinationCity ?? existing?.destinationCity ?? null,
         location: profile.location?.city ?? existing?.location?.city ?? null,
