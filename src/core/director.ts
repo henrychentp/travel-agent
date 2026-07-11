@@ -149,9 +149,19 @@ export class Director {
     }
 
     // Agent A · Scout — candidate options from live web layers.
-    const findings = profile
+    let findings = profile
       ? await this.scout.find(profile, ctx, this.tools)
       : { options: [] as Booking[], sentiment: {} as Record<string, number> };
+
+    // QA/error loop: a real Scout can return an empty set for an over-specific
+    // query. Retry once with an explicit broadening instruction before asking
+    // Culture to explain an empty plan.
+    if (profile && findings.options.length === 0) {
+      findings = await this.scout.find(profile, {
+        ...ctx,
+        focus: [ctx.focus, "Broaden the search to currently open, practical options."].filter(Boolean).join(" "),
+      }, this.tools);
+    }
 
     let ops: PatchOp[] = findings.options.map((option) => ({
       op: "add" as const,
@@ -162,7 +172,11 @@ export class Director {
 
     // Agent B · Logistics — dynamic revision loop (feasibility, density).
     if (profile) {
-      const revised = await this.logistics.revise(profile, ops, { now });
+      const revised = await this.logistics.revise(profile, ops, {
+        now,
+        tripStart: request.startDate,
+        tripEnd: request.endDate,
+      });
       ops = revised.ops;
     }
 

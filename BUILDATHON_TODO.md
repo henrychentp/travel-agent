@@ -80,7 +80,7 @@ real-user/account actions.
 
 - [x] Director creates a request-specific subtask plan rather than a fixed chain.
 - [ ] Local Scout now has a Linkup-backed, source-grounded candidate path when `LINKUP_API_KEY` is configured; live weather/event proof remains pending.
-- [ ] Logistics Guru validates routing, time buffers, availability, and budget.
+- [ ] Logistics Guru now rejects out-of-window and duplicate candidates, protects requested downtime, and limits low-walking days to one activity area; live routing, availability, and budget-provider proof remain pending.
 - [ ] Culture Concierge has an opt-in OpenAI-backed rationale path using stored interests; live preference/pace/food/accessibility proof remains pending.
 - [x] Director reviews specialist outputs and requests a retry when a worker
       returns no usable candidates; the trace records that revision.
