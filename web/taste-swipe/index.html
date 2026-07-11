@@ -467,8 +467,21 @@
     <p id="doneStatus" style="max-width:280px">Stamping your taste passport…</p>
     <div id="savedBox" class="saved-chips" style="display:none"></div>
     <div id="recapBox" class="recap-box" style="display:none"></div>
-    <button class="btn btn-dark btn-block" id="closeBtn" style="display:none;margin-top:1.25rem;max-width:280px">Back to Hermes chat</button>
+    <button class="btn btn-dark btn-block" id="tripBtn" style="display:none;margin-top:1.25rem;max-width:280px">Continue to your trip →</button>
+    <button class="btn btn-ghost btn-block" id="closeBtn" style="display:none;margin-top:0.5rem;max-width:280px">Back to Hermes chat</button>
     <button class="btn btn-ghost btn-block" id="retryBtn" style="display:none;margin-top:0.5rem;max-width:280px">Try saving again</button>
+  </div>
+
+  <div id="trip" class="screen centered">
+    <div class="mark">🗓️</div><h1>Tell us about this trip</h1>
+    <p>We’ll use this context before planning around your taste.</p>
+    <div style="width:100%;max-width:280px;margin-top:1rem;display:grid;gap:.6rem;text-align:left">
+      <input id="tripCity" class="field-input" placeholder="Destination city" />
+      <input id="tripStart" class="field-input" type="date" />
+      <input id="tripEnd" class="field-input" type="date" />
+      <input id="tripTravellers" class="field-input" type="number" min="1" value="1" />
+    </div>
+    <button class="btn btn-dark btn-block" id="saveTripBtn">Save trip context</button>
   </div>
 
   <script>
@@ -943,7 +956,7 @@
           recapEl.textContent = data.recap;
           recapEl.style.display = 'block';
         }
-        closeBtn.style.display = 'block';
+        document.getElementById('tripBtn').style.display = 'block'; closeBtn.style.display = 'block';
         if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
         if (tg?.sendData) {
           tg.sendData(JSON.stringify({ type: 'onboarding-complete' }));
@@ -958,6 +971,13 @@
 
     document.getElementById('closeBtn').addEventListener('click', () => {
       if (tg) tg.close();
+    });
+    document.getElementById('tripBtn').addEventListener('click', () => showScreen('trip'));
+    document.getElementById('saveTripBtn').addEventListener('click', () => {
+      const city = document.getElementById('tripCity').value.trim(); const start = document.getElementById('tripStart').value; const end = document.getElementById('tripEnd').value; const travellers = document.getElementById('tripTravellers').value;
+      if (!city || !start || !end || end < start) { toast('Add a destination and valid travel dates.'); return; }
+      if (tg?.sendData) tg.sendData(JSON.stringify({ type: 'trip-context', city, startDate: start, endDate: end, travellers: Number(travellers) }));
+      toast('Trip context saved — return to Hermes chat to plan it.');
     });
 
     document.getElementById('btnPass').addEventListener('click', () => swipe('left'));
