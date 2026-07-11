@@ -166,7 +166,8 @@ async function oneMinuteBriefing(plan: TripPlan, profile: TravellerProfile): Pro
   }
 }
 
-async function runOnboardingDemo(chatId: number, userId: string): Promise<void> {
+/** Run the post-onboarding demo from either a Telegram callback or the Mini App API. */
+export async function runOnboardingDemo(chatId: number, userId: string): Promise<void> {
   // Hosted Mem0 writes are asynchronous. The Mini App save and Telegram
   // callback may land in different processes, so wait briefly for the newly
   // persisted profile rather than falling back to a fixture.
@@ -230,11 +231,9 @@ async function handleStart(chatId: number, firstName: string, userId: string) {
   await sendMessage(
     chatId,
     `Welcome to *Hermes*, ${firstName}.\n\n` +
-      `I suggest what to do when you land somewhere new with a few hours free — ` +
-      `based on *your* taste, calendar, and location.${saved ? destinationLine + locationLine + connectedLine : ""}\n\n` +
-      (saved
-        ? `Tell me where you are and how much time you have, or tap below to refresh your profile.`
-        : `Tap *🎯 Build taste profile* to connect Google, share your location, then swipe your preferences.`),
+      `Use these two commands to get started:${saved ? destinationLine + locationLine + connectedLine : ""}\n\n` +
+      `1. Send *onboarding* — build or refresh your taste profile.\n` +
+      `2. When the taste cards are saved, send *demo* — Hermes creates your itinerary.`,
     { reply_markup: webAppKeyboard() },
   );
 }

@@ -892,24 +892,17 @@
       try {
         const data = await apiPost('/api/onboarding/swipes', { swipes });
         st.textContent = data.mem0Saved
-          ? 'All set — your taste profile is saved.'
-          : 'Profile saved for this session.';
+          ? 'Taste profile saved — Hermes is building your personalised demo in chat…'
+          : 'Profile saved for this session — Hermes is building your personalised demo in chat…';
         renderSavedChips(data.saved, data.mem0Saved);
         if (data.recap) {
           recapEl.textContent = data.recap;
           recapEl.style.display = 'block';
         }
-        closeBtn.style.display = 'block';
         if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-        if (tg?.sendData && tripContext) {
-          tg.sendData(JSON.stringify({
-            type: 'trip-context',
-            swipes,
-            ...tripContext,
-          }));
-        } else if (tg?.sendData) {
-          tg.sendData(JSON.stringify({ type: 'onboarding-complete', swipes }));
-        }
+        await apiPost('/api/onboarding/complete', { tripContext });
+        st.textContent = 'Your personalised demo is ready in the Hermes chat.';
+        closeBtn.style.display = 'block';
       } catch (e) {
         st.textContent = e.message || 'Could not save. Try again.';
         retryBtn.style.display = 'block';
@@ -919,9 +912,8 @@
     document.getElementById('retryBtn').addEventListener('click', () => finish());
 
     document.getElementById('closeBtn').addEventListener('click', () => {
-      // The profile is saved at this point. Returning to chat is the explicit
-      // handoff that starts Hermes's research and itinerary delivery.
-      if (tg?.sendData) tg.sendData(JSON.stringify({ type: 'onboarding-complete' }));
+      // The profile is saved at this point. The traveller explicitly starts
+      // planning from chat with the `demo` command.
       if (tg) tg.close();
     });
     document.getElementById('saveTripBtn').addEventListener('click', async () => {
