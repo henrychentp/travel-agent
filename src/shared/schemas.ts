@@ -20,6 +20,31 @@ export type TripId = string;
 export type ISODate = string; // "2026-08-14" or full ISO timestamp
 export type Scale1to5 = 1 | 2 | 3 | 4 | 5;
 
+/** Device location captured during onboarding (for city-aware suggestions). */
+export interface TravellerLocation {
+  lat: number;
+  lng: number;
+  city?: string;
+  country?: string;
+  capturedAt: ISODate;
+}
+
+export type ConnectorId =
+  | "google"
+  | "apple"
+  | "notion"
+  | "obsidian"
+  | "location";
+
+export type ConnectorStatus = "available" | "connected" | "skipped" | "pending";
+
+export interface ConnectedSource {
+  id: ConnectorId;
+  status: ConnectorStatus;
+  connectedAt: ISODate;
+  scopes?: string[];
+}
+
 /** Where a piece of profile data came from. */
 export type ProvenanceSource = "stated" | "revealed" | "inferred";
 
@@ -274,6 +299,11 @@ export interface TravellerProfile {
   notes: string[];
   /** Passively-observed behaviour (see checklist "signals over time"). */
   evidence: EvidenceEntry[];
+
+  /** Live device location (updated on each connect flow). */
+  location?: TravellerLocation;
+  /** Third-party connectors the traveller has linked. */
+  connectedSources?: ConnectedSource[];
 
   /** 0..1 confidence per category — how sure we are of this data. */
   confidence: Partial<Record<ProfileCategory, number>>;

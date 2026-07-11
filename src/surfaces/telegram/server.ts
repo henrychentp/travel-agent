@@ -13,11 +13,7 @@ import { join, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createMem0Client } from "../../shared/mem0-client.js";
 import { chat } from "../../shared/llm.js";
-import {
-  getTelegramBotToken,
-  getWebAppUrl,
-  getServerPort,
-} from "../../shared/env.js";
+import { getOnboardingModel, getTelegramBotToken, getWebAppUrl, getServerPort, isGoogleConfigured, getTelegramAllowUnsafeUser } from "../../shared/env.js";
 import {
   SWIPE_DECK,
   SWIPE_ROUNDS,
@@ -28,9 +24,18 @@ import {
   type SwipeInput,
 } from "../../skills/onboarding/swipe.js";
 import {
+  handleConnectLocation,
+  handleConnectPaste,
+  handleConnectSources,
+  handleConnectStatus,
+  handleGoogleCallback,
+  handleGoogleStart,
+} from "./connect-handlers.js";
+import {
   parseTelegramUser,
+  resolveTelegramUser,
   telegramUserId,
-  validateInitData,
+  type TelegramWebAppUser,
 } from "./init-data.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
@@ -117,22 +122,22 @@ async function serveStatic(
 
 async function handleSwipes(req: IncomingMessage, res: ServerResponse) {
   const raw = await readBody(req);
-  const { initData, swipes } = JSON.parse(raw) as {
+  const { initData, unsafeUser, resumeToken, swipes } = JSON.parse(raw) as {
     initData: string;
+    unsafeUser?: TelegramWebAppUser;
+    resumeToken?: string;
     swipes: SwipeInput[];
   };
 
-  const token = getTelegramBotToken();
-  if (!initData || !validateInitData(initData, token)) {
-    res.writeHead(401, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Invalid initData" }));
-    return;
-  }
-
-  const tgUser = parseTelegramUser(initData);
+  const tgUser = resolveTelegramUser(
+    initData,
+    getTelegramBotToken(),
+    unsafeUser,
+    resumeToken,
+  );
   if (!tgUser) {
-    res.writeHead(400, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "No user in initData" }));
+    res.writeHead(401, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Could not verify Telegram session" }));
     return;
   }
 
@@ -143,37 +148,58 @@ async function handleSwipes(req: IncomingMessage, res: ServerResponse) {
 
   let recap = formatSwipeRecap(recapFacts);
   try {
-    recap = await chat([
-      {
-        role: "system",
-        content: `You are Hermes, a premium day-travel concierge. The traveller just finished a swipe onboarding. Write a warm, concise Telegram recap (max 4 sentences + 3 bullet points). They position us as: landed in a city, few hours free, we suggest based on taste. End with an example prompt they can send.`,
-      },
-      {
-        role: "user",
-        content: `Name: ${tgUser.first_name}. Learned: ${recapFacts.join("; ")}. Profile summary: ${JSON.stringify({ pace: profile.pace, food: profile.food, activities: profile.activities, dealBreakers: profile.dealBreakers })}`,
-      },
-    ]);
+    recap = await chat(
+      [
+        {
+          role: "system",
+          content: `You are Hermes, a premium day-travel concierge. The traveller just finished onboarding in the mini app. Write a warm, concise recap (3-4 sentences + 3 short bullets). They use us when landed in a city with a few free hours. End with one example question they could ask later in chat.`,
+        },
+        {
+          role: "user",
+          content: `Name: ${tgUser.first_name}. Learned: ${recapFacts.join("; ")}. Profile: ${JSON.stringify({ pace: profile.pace, food: profile.food, activities: profile.activities, location: profile.location, connectedSources: profile.connectedSources })}`,
+        },
+      ],
+      { model: getOnboardingModel() },
+    );
   } catch {
-    /* fallback recap already set */
+    /* fallback */
   }
 
-  await sendMessage(tgUser.id, recap, { reply_markup: webAppKeyboard() });
-
   res.writeHead(200, { "Content-Type": "application/json" });
-  res.end(JSON.stringify({ ok: true, userId, categories: Object.keys(profile.confidence) }));
+  res.end(
+    JSON.stringify({
+      ok: true,
+      userId,
+      recap,
+      location: profile.location?.city,
+      connected: profile.connectedSources?.map((s) => s.id) ?? [],
+    }),
+  );
 }
 
-/* ------------------------------------------------------------------ */
-/* Bot message handlers                                               */
-/* ------------------------------------------------------------------ */
+async function syncTelegramMenuButton() {
+  const url = getWebAppUrl();
+  try {
+    await tgApi("setChatMenuButton", {
+      menu_button: {
+        type: "web_app",
+        text: "Build taste profile",
+        web_app: { url },
+      },
+    });
+    console.log(`Menu button     synced → ${url}`);
+  } catch (err) {
+    console.warn("Could not sync menu button:", err);
+  }
+}
 
 async function handleStart(chatId: number, firstName: string) {
   await sendMessage(
     chatId,
     `Welcome to *Hermes*, ${firstName}.\n\n` +
-      `I'm your day-travel concierge — landed in a new city with a few hours to kill? ` +
-      `I'll suggest something that actually fits *you*, not a generic list.\n\n` +
-      `First, let's learn your taste. Tap the button below — takes about 2 minutes.`,
+      `I suggest what to do when you land somewhere new with a few hours free — ` +
+      `based on *your* taste, calendar, and location.\n\n` +
+      `Tap *🎯 Build taste profile* to connect Google, share your location, then swipe your preferences.`,
     { reply_markup: webAppKeyboard() },
   );
 }
@@ -192,11 +218,11 @@ async function handleFreeTime(chatId: number, userId: string, text: string) {
   const reply = await chat([
     {
       role: "system",
-      content: `You are Hermes, a premium day-travel concierge. Suggest 2-3 specific things for a traveller with a few free hours. Use their taste profile. Be concrete (neighbourhoods, food, vibe). Keep it Telegram-friendly.`,
+      content: `You are Hermes, a premium day-travel concierge. Suggest 2-3 specific things for a traveller with a few free hours. Use their taste profile and current location if known. Be concrete (neighbourhoods, food, vibe). Keep it Telegram-friendly.`,
     },
     {
       role: "user",
-      content: `Request: "${text}"\nProfile: ${JSON.stringify({ pace: profile.pace, food: profile.food, activities: profile.activities, comfortRisk: profile.comfortRisk, dealBreakers: profile.dealBreakers, notes: profile.notes })}`,
+      content: `Request: "${text}"\nLocation: ${profile.location?.city ?? "unknown"}\nProfile: ${JSON.stringify({ pace: profile.pace, food: profile.food, activities: profile.activities, comfortRisk: profile.comfortRisk, dealBreakers: profile.dealBreakers, notes: profile.notes, connectedSources: profile.connectedSources })}`,
     },
   ]);
 
@@ -207,12 +233,9 @@ async function handleWebAppData(chatId: number, data: string) {
   try {
     const { swipes } = JSON.parse(data) as { swipes: SwipeInput[] };
     const userId = `tg:${chatId}`;
-    const { recapFacts } = await onboardFromSwipes(userId, swipes, { mem0 });
-    await sendMessage(chatId, formatSwipeRecap(recapFacts), {
-      reply_markup: webAppKeyboard(),
-    });
+    await onboardFromSwipes(userId, swipes, { mem0 });
   } catch {
-    await sendMessage(chatId, "Got your swipes — profile saved.");
+    /* recap shown in mini app — no chat spam */
   }
 }
 
@@ -298,6 +321,36 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "GET" && url.pathname === "/api/connect/sources") {
+      await handleConnectSources(req, res);
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/connect/status") {
+      await handleConnectStatus(req, res, mem0);
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/connect/google/start") {
+      await handleGoogleStart(req, res);
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/connect/google/callback") {
+      await handleGoogleCallback(req, res, mem0);
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/connect/location") {
+      await handleConnectLocation(req, res, mem0);
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/connect/paste") {
+      await handleConnectPaste(req, res, mem0);
+      return;
+    }
+
     if (req.method === "POST" && url.pathname === "/api/onboarding/swipes") {
       await handleSwipes(req, res);
       return;
@@ -320,9 +373,12 @@ const port = getServerPort();
 server.listen(port, async () => {
   console.log(`Hermes server  http://localhost:${port}`);
   console.log(`Mini App URL   ${getWebAppUrl()}`);
+  console.log(`Unsafe user    ${getTelegramAllowUnsafeUser() ? "enabled" : "disabled"}`);
+  console.log(`Google OAuth   ${isGoogleConfigured() ? "configured" : "NOT SET — add GOOGLE_CLIENT_ID/SECRET"}`);
   try {
     await tgApi("deleteWebhook", { drop_pending_updates: true });
     console.log(`Telegram bot   polling (webhook cleared)`);
+    await syncTelegramMenuButton();
   } catch (err) {
     console.warn("Could not clear webhook:", err);
   }

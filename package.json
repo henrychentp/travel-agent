@@ -10,6 +10,7 @@
     "test": "tsc && node --test \"dist/tests/**/*.test.js\"",
     "start": "tsc && node --env-file=.env dist/src/skills/onboarding/dev.js",
     "telegram": "tsc && node --env-file=.env dist/src/surfaces/telegram/server.js",
+    "dev:telegram": "bash scripts/dev-telegram.sh",
     "tunnel": "ngrok http 8787",
     "check-secrets": "node scripts/check-secrets.mjs"
   },

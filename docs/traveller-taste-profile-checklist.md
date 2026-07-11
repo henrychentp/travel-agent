@@ -280,3 +280,17 @@ identity, budget, constraints, and communication before `planTrip()` can run saf
 
 **Future context layers (not yet implemented):** Gmail / Google Calendar import for
 situational context (meeting times, flight confirmations) on top of durable taste.
+
+### Connect-first flow (mini app Act 0)
+
+Before taste swipes, the traveller may link:
+
+| Connector | Status | What we extract |
+| --- | --- | --- |
+| **Google** (Gmail + Calendar) | OAuth when `GOOGLE_CLIENT_ID` set | Booking emails, flight/hotel subjects, upcoming calendar gaps |
+| **Location** | Device GPS in mini app | Current city → `profile.location` + `identity.homeCity` hint |
+| **Notion / Obsidian** | Paste export | Free-text travel notes → `notes[]` + dietary/tags |
+| **Apple Calendar** | Planned (native iOS) | Not available in Telegram Web App |
+
+Imported signals flow through `applyImport()` → `onboardUser()` → Mem0, with
+`connectedSources[]` tracking what was linked. Swipe onboarding runs after connect.

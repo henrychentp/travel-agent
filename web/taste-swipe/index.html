@@ -3,18 +3,25 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Hermes — Taste Profile</title>
+  <title>Hermes — Travel Concierge</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
     :root {
-      --bg: #0c0c0f;
-      --surface: #16161c;
-      --text: #f4f4f6;
-      --muted: #8b8b9a;
-      --accent: #c9a962;
-      --pass: #e85d5d;
-      --love: #5dce8a;
-      --super: #6eb5ff;
+      --bg: #faf7f2;
+      --bg-secondary: #fff;
+      --bg-warm: #fff5eb;
+      --border: rgba(26, 54, 93, 0.08);
+      --text: #1a365d;
+      --muted: #6b7c93;
+      --accent: #1a365d;
+      --accent-light: #2c5282;
+      --coral: #e07a5f;
+      --coral-dark: #c96a52;
+      --sky: #3d8bfd;
+      --sand: #f4e4c8;
+      --green: #2d6a4f;
+      --radius: 14px;
+      --shadow: 0 4px 20px rgba(26, 54, 93, 0.08);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -22,251 +29,669 @@
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
-      overflow: hidden;
-      -webkit-user-select: none;
-      user-select: none;
+      -webkit-font-smoothing: antialiased;
+    }
+    body::before {
+      content: '';
+      position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background:
+        radial-gradient(circle at 90% 5%, rgba(61, 139, 253, 0.12) 0%, transparent 40%),
+        radial-gradient(circle at 10% 95%, rgba(224, 122, 95, 0.1) 0%, transparent 35%);
     }
 
-    .screen { display: none; min-height: 100vh; flex-direction: column; }
+    .screen { display: none; min-height: 100vh; flex-direction: column; position: relative; z-index: 1; }
     .screen.active { display: flex; }
 
-    /* Intro */
-    .intro { padding: 2rem 1.5rem; justify-content: center; text-align: center; }
-    .intro .logo { font-size: 2.5rem; margin-bottom: 0.5rem; }
-    .intro h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 0.75rem; }
-    .intro p { color: var(--muted); line-height: 1.5; font-size: 0.95rem; max-width: 300px; margin: 0 auto 2rem; }
-    .btn-primary {
-      background: var(--accent);
-      color: #0c0c0f;
-      border: none;
-      padding: 1rem 2rem;
-      border-radius: 14px;
-      font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
-      width: 100%;
-      max-width: 280px;
-      margin: 0 auto;
+    .banner {
+      display: none;
+      padding: 0.65rem 1rem;
+      background: #fff8e6;
+      border-bottom: 1px solid #f0e6c8;
+      font-size: 0.78rem;
+      color: #8a6d00;
+      line-height: 1.4;
+    }
+    .banner.show { display: block; }
+
+    .toast {
+      position: fixed; bottom: 1.25rem; left: 50%; transform: translateX(-50%) translateY(120%);
+      background: var(--accent); color: #fff; padding: 0.65rem 1.1rem;
+      border-radius: 100px; font-size: 0.82rem; font-weight: 500;
+      transition: transform 0.25s ease; z-index: 100; pointer-events: none;
+      max-width: 90%; text-align: center; box-shadow: var(--shadow);
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* Connect */
+    .connect { padding: 0; }
+    .top-bar {
+      padding: 1.5rem 1.25rem 1rem;
+      background: linear-gradient(160deg, var(--accent) 0%, var(--accent-light) 100%);
+      color: #fff;
+      border-radius: 0 0 24px 24px;
+      position: relative;
+      overflow: hidden;
+    }
+    .top-bar::after {
+      content: '✈';
+      position: absolute; right: 1rem; top: 1rem;
+      font-size: 2.5rem; opacity: 0.15;
+    }
+    .brand {
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.14em;
+      text-transform: uppercase; color: rgba(255,255,255,0.75);
+      display: flex; align-items: center; gap: 0.4rem;
+    }
+    .brand::before { content: '🧳'; font-size: 0.85rem; letter-spacing: 0; }
+    .top-bar h1 { font-size: 1.55rem; font-weight: 700; letter-spacing: -0.03em; margin-top: 0.5rem; }
+    .top-bar p { color: rgba(255,255,255,0.85); font-size: 0.88rem; line-height: 1.5; margin-top: 0.45rem; max-width: 90%; }
+
+    .connect-scroll { flex: 1; overflow-y: auto; padding: 1.1rem 1.25rem; display: flex; flex-direction: column; gap: 0.65rem; }
+
+    .connect-card {
+      background: var(--bg-secondary);
+      border-radius: var(--radius);
+      padding: 0.9rem 1rem;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
     }
 
-    /* Swipe */
-    .header { padding: 1rem 1.25rem 0.5rem; }
-    .round-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent); }
-    .round-title { font-size: 1.1rem; font-weight: 600; margin-top: 0.2rem; }
-    .round-sub { font-size: 0.8rem; color: var(--muted); margin-top: 0.15rem; }
-    .progress-track { height: 3px; background: #2a2a32; border-radius: 2px; margin: 0.75rem 1.25rem; overflow: hidden; }
-    .progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.3s ease; }
-
-    .deck { flex: 1; position: relative; margin: 0.5rem 1rem 1rem; min-height: 380px; }
-    .card {
-      position: absolute; inset: 0;
-      border-radius: 20px;
-      display: flex; flex-direction: column; justify-content: flex-end;
-      padding: 1.75rem;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-      cursor: grab;
-      touch-action: none;
-      will-change: transform;
+    .row-item {
+      display: flex; align-items: center; gap: 0.85rem;
+      padding: 0.35rem 0;
     }
-    .card.dragging { cursor: grabbing; transition: none; }
-    .card .emoji { font-size: 3.5rem; margin-bottom: auto; padding-top: 1rem; }
-    .card h2 { font-size: 1.45rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
-    .card p { font-size: 0.9rem; opacity: 0.85; margin-top: 0.5rem; line-height: 1.4; }
-    .stamp {
-      position: absolute; top: 2rem; padding: 0.4rem 0.8rem;
-      border: 3px solid; border-radius: 8px;
-      font-size: 1.4rem; font-weight: 800; letter-spacing: 0.05em;
-      opacity: 0; transform: rotate(-12deg);
-    }
-    .stamp.pass { left: 1.5rem; color: var(--pass); border-color: var(--pass); }
-    .stamp.love { right: 1.5rem; color: var(--love); border-color: var(--love); transform: rotate(12deg); }
-
-    .actions {
-      display: flex; justify-content: center; align-items: center; gap: 1.25rem;
-      padding: 0 1rem 1.5rem;
-    }
-    .action-btn {
-      width: 56px; height: 56px; border-radius: 50%; border: none;
-      font-size: 1.4rem; cursor: pointer;
+    .row-icon {
+      width: 40px; height: 40px; border-radius: 12px;
+      background: var(--bg-warm);
       display: flex; align-items: center; justify-content: center;
-      background: var(--surface);
-      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      font-size: 1.1rem; flex-shrink: 0;
     }
-    .action-btn.pass { color: var(--pass); }
-    .action-btn.love { color: var(--love); width: 64px; height: 64px; font-size: 1.6rem; }
-    .action-btn.super { color: var(--super); font-size: 1.1rem; }
+    .row-body { flex: 1; min-width: 0; }
+    .row-name { font-size: 0.95rem; font-weight: 600; color: var(--accent); }
+    .row-desc { font-size: 0.78rem; color: var(--muted); margin-top: 0.15rem; line-height: 1.35; }
+    .row-status { font-size: 0.72rem; color: var(--muted); font-weight: 600; }
+    .row-status.ok { color: var(--green); }
+    .row-status.ok::before { content: '✓ '; }
 
-    /* Done */
-    .done { padding: 2rem 1.5rem; justify-content: center; text-align: center; }
-    .done .check { font-size: 3rem; margin-bottom: 1rem; }
-    .done h2 { font-size: 1.35rem; margin-bottom: 0.5rem; }
-    .done p { color: var(--muted); font-size: 0.9rem; line-height: 1.5; }
-    .done .status { margin-top: 1.5rem; font-size: 0.85rem; color: var(--muted); }
+    .btn {
+      border: none; cursor: pointer; font-family: inherit; font-weight: 600;
+      border-radius: var(--radius); transition: transform 0.12s, opacity 0.15s;
+    }
+    .btn:active { transform: scale(0.98); opacity: 0.9; }
+    .btn-block { width: 100%; padding: 0.82rem 1rem; font-size: 0.88rem; margin-top: 0.55rem; }
+    .btn-dark {
+      background: linear-gradient(135deg, var(--coral) 0%, var(--coral-dark) 100%);
+      color: #fff; box-shadow: 0 4px 14px rgba(224, 122, 95, 0.35);
+    }
+    .btn-ghost { background: var(--sand); color: var(--accent); }
+    .btn-outline { background: #fff; color: var(--accent); border: 1.5px solid var(--border); }
+    .btn-google {
+      background: #fff; color: var(--text); border: 1.5px solid var(--border);
+      display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+    }
+    .btn-google svg { width: 18px; height: 18px; }
+
+    .expand-panel { display: none; padding: 0.75rem 0 0; }
+    .expand-panel.open { display: block; }
+    .expand-panel textarea {
+      width: 100%; min-height: 72px; border: 1.5px solid var(--border); border-radius: 10px;
+      padding: 0.65rem 0.8rem; font-size: 0.82rem; font-family: inherit; color: var(--text);
+      background: var(--bg); resize: vertical; outline: none;
+    }
+    .expand-panel textarea:focus { border-color: var(--sky); }
+    .file-row { margin-top: 0.45rem; font-size: 0.78rem; color: var(--muted); }
+    .file-row input[type=file] { font-size: 0.75rem; margin-top: 0.25rem; width: 100%; }
+
+    .footer-cta {
+      padding: 1rem 1.25rem 1.5rem;
+      border-top: 1px solid var(--border);
+      background: var(--bg-secondary);
+      display: flex; flex-direction: column; gap: 0.4rem;
+    }
+    .inline-feedback {
+      margin: 0 0 0.5rem; padding: 0.75rem 1rem; border-radius: 10px;
+      background: #e8f5f0; border: 1px solid #b8e0d0;
+      font-size: 0.82rem; line-height: 1.45; color: var(--green);
+      display: none;
+    }
+    .inline-feedback.show { display: block; }
+    .inline-feedback.warn { background: #fff8e6; border-color: #f0e6c8; color: #8a6d00; }
+    .recap-box {
+      text-align: left; max-width: 300px; margin-top: 1rem;
+      padding: 1.1rem; background: var(--bg-secondary); border-radius: var(--radius);
+      font-size: 0.85rem; line-height: 1.55; color: var(--text);
+      white-space: pre-wrap; border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+    }
+    .btn.loading { opacity: 0.5; pointer-events: none; }
+    .link-skip { background: none; border: none; color: var(--muted); font-size: 0.82rem; padding: 0.5rem; cursor: pointer; font-family: inherit; text-decoration: underline; text-underline-offset: 2px; }
+
+    /* Intro + swipe + done */
+    .centered { padding: 2.5rem 1.5rem; justify-content: center; align-items: center; text-align: center; flex: 1; }
+    .centered .mark {
+      font-size: 2.8rem; margin-bottom: 1rem;
+      width: 72px; height: 72px; border-radius: 50%;
+      background: var(--bg-warm); display: flex; align-items: center; justify-content: center;
+      box-shadow: var(--shadow);
+    }
+    .centered h1 { font-size: 1.45rem; font-weight: 700; letter-spacing: -0.02em; color: var(--accent); }
+    .centered p { color: var(--muted); font-size: 0.9rem; line-height: 1.55; margin-top: 0.6rem; max-width: 280px; }
+    .centered .btn { margin-top: 1.75rem; max-width: 280px; }
+
+    .swipe-header { padding: 1rem 1.25rem 0.25rem; }
+    .swipe-header .step {
+      font-size: 0.72rem; color: var(--coral); font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.08em;
+    }
+    .swipe-header h2 { font-size: 1.15rem; font-weight: 700; margin-top: 0.2rem; color: var(--accent); }
+    .bar {
+      height: 6px; background: var(--sand); margin: 0.75rem 1.25rem;
+      border-radius: 100px; overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--coral), var(--sky));
+      transition: width 0.3s; border-radius: 100px;
+    }
+    .deck { flex: 1; position: relative; margin: 0.5rem 1rem; min-height: 340px; }
+    .card {
+      position: absolute; inset: 0; border-radius: 20px; padding: 1.5rem;
+      display: flex; flex-direction: column; justify-content: flex-end;
+      box-shadow: 0 8px 32px rgba(26, 54, 93, 0.2); cursor: grab; touch-action: none;
+      border: 2px solid rgba(255,255,255,0.2);
+    }
+    .card .emoji { font-size: 2.8rem; margin-bottom: auto; padding-top: 0.5rem; }
+    .card h3 { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; color: #fff; }
+    .card p { font-size: 0.85rem; color: rgba(255,255,255,0.9); margin-top: 0.35rem; line-height: 1.4; }
+    .swipe-actions { display: flex; justify-content: center; gap: 1rem; padding: 0 1rem 1.25rem; }
+    .circle-btn {
+      width: 52px; height: 52px; border-radius: 50%; border: 2px solid var(--border);
+      background: #fff; font-size: 1.2rem; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: var(--shadow);
+    }
+    .circle-btn.love {
+      width: 60px; height: 60px; border-color: var(--coral);
+      background: linear-gradient(135deg, #fff 0%, var(--bg-warm) 100%);
+    }
   </style>
 </head>
 <body>
-  <div id="intro" class="screen intro active">
-    <div class="logo">🪽</div>
-    <h1>Build your taste profile</h1>
-    <p>Swipe on travel moments so Hermes knows what to suggest when you land somewhere new with a few hours to spare.</p>
-    <button class="btn-primary" id="startBtn">Start swiping</button>
+  <div id="banner" class="banner"></div>
+  <div id="toast" class="toast"></div>
+
+  <!-- Connect -->
+  <div id="connect" class="screen connect active">
+    <div class="top-bar">
+      <div class="brand">Hermes Travel</div>
+      <h1>Pack your context</h1>
+      <p>Connect your inbox, calendar & location — we'll learn your travel style before you land.</p>
+    </div>
+
+    <div class="connect-scroll">
+      <div class="connect-card">
+        <div class="row-item">
+          <div class="row-icon">
+            <svg viewBox="0 0 24 24" width="18" height="18"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+          </div>
+          <div class="row-body">
+            <div class="row-name">Gmail & Calendar</div>
+            <div class="row-desc">Flights, hotels, meetings — we spot your free windows</div>
+          </div>
+          <span class="row-status" id="status-google"> </span>
+        </div>
+        <button class="btn btn-google btn-block" id="btnGoogle">Connect Google</button>
+      </div>
+
+      <div class="connect-card">
+        <div class="row-item">
+          <div class="row-icon">📍</div>
+          <div class="row-body">
+            <div class="row-name">Where are you?</div>
+            <div class="row-desc">Live city for "3 hours free — what should I do?"</div>
+          </div>
+          <span class="row-status" id="status-location"> </span>
+        </div>
+        <button class="btn btn-ghost btn-block" id="btnLocation">Share my location</button>
+      </div>
+
+      <div class="connect-card">
+        <div class="row-item">
+          <div class="row-icon" style="font-weight:700;font-size:0.85rem">N</div>
+          <div class="row-body">
+            <div class="row-name">Notion travel notes</div>
+            <div class="row-desc">Paste or upload your trip research</div>
+          </div>
+          <span class="row-status" id="status-notion"> </span>
+        </div>
+        <button class="btn btn-outline btn-block" id="toggleNotion">Import from Notion</button>
+        <div class="expand-panel" id="panel-notion">
+          <textarea id="notionText" placeholder="Barcelona favourites, dietary notes, must-sees…"></textarea>
+          <div class="file-row">or upload .md<input type="file" id="notionFile" accept=".md,.txt,.markdown" /></div>
+          <button class="btn btn-dark btn-block" id="btnNotionImport">Add to profile</button>
+        </div>
+      </div>
+
+      <div class="connect-card">
+        <div class="row-item">
+          <div class="row-icon" style="font-weight:700;font-size:0.85rem">◈</div>
+          <div class="row-body">
+            <div class="row-name">Obsidian vault</div>
+            <div class="row-desc">Your personal travel knowledge base</div>
+          </div>
+          <span class="row-status" id="status-obsidian"> </span>
+        </div>
+        <button class="btn btn-outline btn-block" id="toggleObsidian">Import from Obsidian</button>
+        <div class="expand-panel" id="panel-obsidian">
+          <textarea id="obsidianText" placeholder="Paste markdown from your vault…"></textarea>
+          <div class="file-row">or upload .md<input type="file" id="obsidianFile" accept=".md,.txt,.markdown" /></div>
+          <button class="btn btn-dark btn-block" id="btnObsidianImport">Add to profile</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-cta">
+      <div id="inlineFeedback" class="inline-feedback"></div>
+      <button class="btn btn-dark btn-block" id="continueBtn">Next — taste swipes →</button>
+      <button class="link-skip" id="skipConnectBtn">Skip, I'll connect later</button>
+    </div>
   </div>
 
+  <!-- Swipe intro -->
+  <div id="intro" class="screen centered">
+    <div class="mark">🗺️</div>
+    <h1>Plot your taste</h1>
+    <p>Swipe like a travel magazine — right on what feels like you. Two minutes, then you're ready to explore.</p>
+    <button class="btn btn-dark btn-block" id="startBtn">Start swiping</button>
+  </div>
+
+  <!-- Swipe -->
   <div id="swipe" class="screen">
-    <div class="header">
-      <div class="round-label" id="roundLabel">Round 1</div>
-      <div class="round-title" id="roundTitle">Free hours</div>
-      <div class="round-sub" id="roundSub"></div>
+    <div class="swipe-header">
+      <div class="step" id="roundLabel">1 / 5</div>
+      <h2 id="roundTitle"></h2>
+      <p id="roundSub" style="font-size:0.8rem;color:var(--muted);margin-top:0.15rem"></p>
     </div>
-    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="bar"><div class="bar-fill" id="progressFill"></div></div>
     <div class="deck" id="deck"></div>
-    <div class="actions">
-      <button class="action-btn pass" id="btnPass" aria-label="Pass">✕</button>
-      <button class="action-btn super" id="btnSuper" aria-label="Essential">★</button>
-      <button class="action-btn love" id="btnLove" aria-label="Love">♥</button>
+    <div class="swipe-actions">
+      <button class="circle-btn" id="btnPass">✕</button>
+      <button class="circle-btn" id="btnSuper" style="font-size:0.95rem">★</button>
+      <button class="circle-btn love" id="btnLove">♥</button>
     </div>
   </div>
 
-  <div id="done" class="screen done">
-    <div class="check">✓</div>
-    <h2>Taste profile saved</h2>
-    <p>Hermes will use this when you ask what to do on a layover or free afternoon.</p>
-    <div class="status" id="doneStatus">Saving…</div>
+  <div id="done" class="screen centered">
+    <div class="mark" style="color:var(--green)">✈️</div>
+    <h1>Bon voyage!</h1>
+    <p id="doneStatus" style="max-width:280px">Stamping your taste passport…</p>
+    <div id="recapBox" class="recap-box" style="display:none"></div>
+    <button class="btn btn-dark btn-block" id="closeBtn" style="display:none;margin-top:1.25rem;max-width:280px">Back to Hermes chat</button>
   </div>
 
   <script>
     const tg = window.Telegram?.WebApp;
-    if (tg) { tg.ready(); tg.expand(); }
-
-    let deck = [];
-    let rounds = [];
-    let index = 0;
+    let initData = '';
+    let unsafeUser = null;
+    let resumeToken = '';
+    let deck = [], rounds = [], index = 0;
     const swipes = [];
+    const SESSION_INIT = 'hermes_initData';
+    const SESSION_USER = 'hermes_user';
+    const SESSION_RESUME = 'hermes_resume';
 
-    async function loadDeck() {
-      const res = await fetch('/api/onboarding/deck');
-      const data = await res.json();
-      deck = data.cards;
-      rounds = data.rounds;
+    function persistSession() {
+      if (initData) sessionStorage.setItem(SESSION_INIT, initData);
+      if (unsafeUser?.id) sessionStorage.setItem(SESSION_USER, JSON.stringify(unsafeUser));
+      if (resumeToken) sessionStorage.setItem(SESSION_RESUME, resumeToken);
+    }
+
+    function restoreSession() {
+      initData = initData || sessionStorage.getItem(SESSION_INIT) || '';
+      if (!unsafeUser?.id) {
+        try {
+          unsafeUser = JSON.parse(sessionStorage.getItem(SESSION_USER) || 'null');
+        } catch { unsafeUser = null; }
+      }
+      resumeToken = resumeToken || sessionStorage.getItem(SESSION_RESUME) || '';
+    }
+
+    function captureFromTelegram() {
+      if (!tg) return false;
+      tg.ready();
+      tg.expand();
+      if (tg.initData) initData = tg.initData;
+      if (tg.initDataUnsafe?.user?.id) unsafeUser = tg.initDataUnsafe.user;
+      persistSession();
+      return !!(initData || unsafeUser?.id || resumeToken);
     }
 
     function showScreen(id) {
       document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-      document.getElementById(id).classList.add('active');
+      document.getElementById(id)?.classList.add('active');
     }
 
-    function updateHeader() {
-      const card = deck[index];
-      if (!card) return;
-      const round = rounds.find(r => r.id === card.round) || {};
-      document.getElementById('roundLabel').textContent = `Round ${card.round} of ${rounds.length}`;
-      document.getElementById('roundTitle').textContent = round.title || card.roundTitle;
-      document.getElementById('roundSub').textContent = round.subtitle || '';
-      document.getElementById('progressFill').style.width = `${(index / deck.length) * 100}%`;
+    function toast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), 2800);
+    }
+
+    function setStatus(id, text, ok) {
+      const el = document.getElementById(`status-${id}`);
+      if (!el) return;
+      el.textContent = text || '';
+      el.classList.toggle('ok', !!ok);
+    }
+
+    function authPayload() {
+      return { initData, unsafeUser, resumeToken: resumeToken || undefined };
+    }
+
+    function sessionOk() {
+      return !!(initData || unsafeUser?.id || resumeToken);
+    }
+
+    async function waitForTelegram(maxMs = 10000) {
+      restoreSession();
+      if (captureFromTelegram() || sessionOk()) return true;
+
+      return new Promise((resolve) => {
+        const t0 = Date.now();
+        const tick = () => {
+          restoreSession();
+          if (captureFromTelegram() || sessionOk()) {
+            resolve(true);
+            return true;
+          }
+          if (Date.now() - t0 >= maxMs) {
+            resolve(sessionOk());
+            return true;
+          }
+          return false;
+        };
+
+        if (tick()) return;
+
+        const interval = setInterval(() => {
+          if (tick()) clearInterval(interval);
+        }, 120);
+
+        if (tg?.onEvent) {
+          tg.onEvent('viewportChanged', () => tick());
+        }
+      });
+    }
+
+    function showSessionBanner(ok) {
+      const b = document.getElementById('banner');
+      if (ok) { b.classList.remove('show'); return; }
+      b.innerHTML = 'Session not detected. <strong>Send /start</strong> in the Hermes chat, then tap <strong>🎯 Build taste profile</strong> (the keyboard button — not a browser link). If you just changed the tunnel URL, /start again for a fresh button.';
+      b.classList.add('show');
+    }
+
+    async function apiPost(path, body) {
+      const res = await fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...authPayload(), ...body }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || data.hint || 'Request failed');
+      return data;
+    }
+
+    function showFeedback(msg, warn = false) {
+      const el = document.getElementById('inlineFeedback');
+      el.textContent = msg;
+      el.classList.toggle('warn', warn);
+      el.classList.add('show');
+    }
+
+    function clearUrlParams() {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+
+    function handleReturnParams() {
+      const p = new URLSearchParams(window.location.search);
+      const resume = p.get('resume');
+      if (resume) {
+        resumeToken = resume;
+        persistSession();
+      }
+      if (p.get('google') === 'connected') {
+        const n = p.get('signals') || '0';
+        setStatus('google', '✓', true);
+        showFeedback(`Google connected — found ${n} calendar & email signals.`);
+        if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+        clearUrlParams();
+        showScreen('connect');
+        return true;
+      }
+      if (p.get('google') === 'unconfigured') {
+        showFeedback('Google OAuth not configured yet. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to server .env, then restart. Redirect URI: ' + window.location.origin + '/api/connect/google/callback', true);
+        clearUrlParams();
+        showScreen('connect');
+        return true;
+      }
+      if (p.get('google') === 'error') {
+        showFeedback('Google sign-in failed. Try again or skip for now.', true);
+        clearUrlParams();
+        showScreen('connect');
+        return true;
+      }
+      if (p.get('error') === 'session') {
+        showSessionBanner(false);
+        clearUrlParams();
+        return true;
+      }
+      return false;
+    }
+
+    function setLoading(id, on) {
+      const el = document.getElementById(id);
+      if (el) el.classList.toggle('loading', on);
+    }
+
+    // Google — navigate inside the mini app webview (no external browser)
+    document.getElementById('btnGoogle').addEventListener('click', () => {
+      if (!sessionOk()) { showSessionBanner(false); return; }
+      const u = unsafeUser ? `&unsafeUser=${encodeURIComponent(JSON.stringify(unsafeUser))}` : '';
+      const url = `/api/connect/google/start?initData=${encodeURIComponent(initData)}${u}`;
+      setLoading('btnGoogle', true);
+      showFeedback('Redirecting to Google sign-in…');
+      window.location.assign(url);
+    });
+
+    // Location
+    document.getElementById('btnLocation').addEventListener('click', () => {
+      if (!sessionOk()) { showSessionBanner(false); return; }
+      if (!navigator.geolocation) { showFeedback('Location not supported on this device.', true); return; }
+      setLoading('btnLocation', true);
+      setStatus('location', '…', false);
+      showFeedback('Requesting location permission…');
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          try {
+            const data = await apiPost('/api/connect/location', {
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+            });
+            setStatus('location', data.city || '✓', true);
+            showFeedback(data.message || 'Location saved.');
+            if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+          } catch (e) {
+            showFeedback(e.message, true);
+            setStatus('location', '', false);
+          } finally { setLoading('btnLocation', false); }
+        },
+        () => {
+          showFeedback('Enable location permission in your phone settings, then try again.', true);
+          setStatus('location', '', false);
+          setLoading('btnLocation', false);
+        },
+        { enableHighAccuracy: true, timeout: 12000 }
+      );
+    });
+
+    // Notion / Obsidian
+    document.getElementById('toggleNotion').addEventListener('click', () => {
+      document.getElementById('panel-notion').classList.toggle('open');
+    });
+    document.getElementById('toggleObsidian').addEventListener('click', () => {
+      document.getElementById('panel-obsidian').classList.toggle('open');
+    });
+
+    async function importPaste(source, text) {
+      if (!sessionOk()) { showSessionBanner(false); return; }
+      if (!text?.trim()) { showFeedback('Paste notes or choose a .md file first.', true); return; }
+      const btnId = source === 'notion' ? 'btnNotionImport' : 'btnObsidianImport';
+      setLoading(btnId, true);
+      try {
+        const data = await apiPost('/api/connect/paste', { source, text: text.trim() });
+        setStatus(source, '✓', true);
+        showFeedback(data.message || `${source} imported.`);
+        if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+      } catch (e) {
+        showFeedback(e.message, true);
+      } finally { setLoading(btnId, false); }
+    }
+
+    document.getElementById('btnNotionImport').addEventListener('click', () => {
+      importPaste('notion', document.getElementById('notionText').value);
+    });
+    document.getElementById('btnObsidianImport').addEventListener('click', () => {
+      importPaste('obsidian', document.getElementById('obsidianText').value);
+    });
+
+    function bindFile(fileId, textId) {
+      document.getElementById(fileId).addEventListener('change', (e) => {
+        const f = e.target.files?.[0];
+        if (!f) return;
+        const r = new FileReader();
+        r.onload = () => { document.getElementById(textId).value = r.result; toast('File loaded'); };
+        r.readAsText(f);
+      });
+    }
+    bindFile('notionFile', 'notionText');
+    bindFile('obsidianFile', 'obsidianText');
+
+    // Nav
+    document.getElementById('continueBtn').addEventListener('click', () => showScreen('intro'));
+    document.getElementById('skipConnectBtn').addEventListener('click', () => showScreen('intro'));
+    document.getElementById('startBtn').addEventListener('click', () => { showScreen('swipe'); renderCard(); });
+
+    // Swipe deck
+    async function loadDeck() {
+      try {
+        const res = await fetch('/api/onboarding/deck');
+        const data = await res.json();
+        deck = data.cards || [];
+        rounds = data.rounds || [];
+      } catch (_) {}
     }
 
     function renderCard() {
-      const container = document.getElementById('deck');
-      container.innerHTML = '';
+      const c = document.getElementById('deck');
+      c.innerHTML = '';
       if (index >= deck.length) { finish(); return; }
-
       const card = deck[index];
+      const round = rounds.find(r => r.id === card.round) || {};
+      document.getElementById('roundLabel').textContent = `${card.round} / ${rounds.length}`;
+      document.getElementById('roundTitle').textContent = round.title || card.roundTitle;
+      document.getElementById('roundSub').textContent = round.subtitle || '';
+      document.getElementById('progressFill').style.width = `${(index / deck.length) * 100}%`;
+
       const el = document.createElement('div');
       el.className = 'card';
       el.style.background = card.gradient;
-      el.innerHTML = `
-        <div class="stamp pass">NOPE</div>
-        <div class="stamp love">YES</div>
-        <div class="emoji">${card.emoji}</div>
-        <h2>${card.title}</h2>
-        <p>${card.subtitle}</p>
-      `;
-      container.appendChild(el);
-      updateHeader();
+      el.innerHTML = `<div class="emoji">${card.emoji}</div><h3>${card.title}</h3><p>${card.subtitle}</p>`;
+      c.appendChild(el);
       bindDrag(el);
     }
 
-    function swipe(direction) {
+    function swipe(dir) {
       if (index >= deck.length) return;
-      swipes.push({ cardId: deck[index].id, direction });
+      swipes.push({ cardId: deck[index].id, direction: dir });
       index++;
-      if (tg?.HapticFeedback) {
-        tg.HapticFeedback.impactOccurred(direction === 'left' ? 'light' : 'medium');
-      }
+      if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred(dir === 'left' ? 'light' : 'medium');
       renderCard();
     }
 
     function bindDrag(el) {
-      let startX = 0, currentX = 0, dragging = false;
-      const passStamp = el.querySelector('.stamp.pass');
-      const loveStamp = el.querySelector('.stamp.love');
-
-      const onStart = (x) => { startX = x; dragging = true; el.classList.add('dragging'); };
-      const onMove = (x) => {
-        if (!dragging) return;
-        currentX = x - startX;
-        const rot = currentX * 0.08;
-        el.style.transform = `translateX(${currentX}px) rotate(${rot}deg)`;
-        const op = Math.min(Math.abs(currentX) / 100, 1);
-        if (currentX < 0) { passStamp.style.opacity = op; loveStamp.style.opacity = 0; }
-        else { loveStamp.style.opacity = op; passStamp.style.opacity = 0; }
+      let sx = 0, cx = 0, on = false;
+      const go = (x) => { if (!on) return; cx = x - sx; el.style.transform = `translateX(${cx}px) rotate(${cx * 0.06}deg)`; };
+      const end = () => {
+        if (!on) return; on = false;
+        if (cx < -70) swipe('left');
+        else if (cx > 70) swipe('right');
+        else el.style.transform = '';
+        cx = 0;
       };
-      const onEnd = () => {
-        if (!dragging) return;
-        dragging = false;
-        el.classList.remove('dragging');
-        if (currentX < -80) { flyOff(el, -1); swipe('left'); }
-        else if (currentX > 80) { flyOff(el, 1); swipe('right'); }
-        else { el.style.transform = ''; passStamp.style.opacity = 0; loveStamp.style.opacity = 0; }
-        currentX = 0;
-      };
-
-      el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); onStart(e.clientX); });
-      el.addEventListener('pointermove', e => onMove(e.clientX));
-      el.addEventListener('pointerup', onEnd);
-      el.addEventListener('pointercancel', onEnd);
-    }
-
-    function flyOff(el, dir) {
-      el.style.transition = 'transform 0.3s ease, opacity 0.3s';
-      el.style.transform = `translateX(${dir * 400}px) rotate(${dir * 20}deg)`;
-      el.style.opacity = '0';
+      el.addEventListener('pointerdown', e => { on = true; sx = e.clientX; el.setPointerCapture(e.pointerId); });
+      el.addEventListener('pointermove', e => go(e.clientX));
+      el.addEventListener('pointerup', end);
+      el.addEventListener('pointercancel', end);
     }
 
     async function finish() {
       showScreen('done');
-      const status = document.getElementById('doneStatus');
-
+      const st = document.getElementById('doneStatus');
+      const recapEl = document.getElementById('recapBox');
+      const closeBtn = document.getElementById('closeBtn');
+      st.textContent = 'Packing your taste profile…';
       try {
-        const res = await fetch('/api/onboarding/swipes', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            initData: tg?.initData || '',
-            swipes,
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Save failed');
-        status.textContent = 'Saved — check your chat with Hermes.';
-        if (tg) tg.close();
-      } catch (err) {
-        status.textContent = 'Saved locally — return to chat.';
-        if (tg?.initData) {
-          try { tg.sendData(JSON.stringify({ swipes })); } catch (_) {}
+        const data = await apiPost('/api/onboarding/swipes', { swipes });
+        st.textContent = 'Profile saved.';
+        if (data.recap) {
+          recapEl.textContent = data.recap;
+          recapEl.style.display = 'block';
         }
+        closeBtn.style.display = 'block';
+        if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+      } catch (e) {
+        st.textContent = e.message || 'Could not save. Try again.';
       }
     }
 
-    document.getElementById('startBtn').addEventListener('click', () => {
-      showScreen('swipe');
-      renderCard();
+    document.getElementById('closeBtn').addEventListener('click', () => {
+      if (tg) tg.close();
     });
+
     document.getElementById('btnPass').addEventListener('click', () => swipe('left'));
     document.getElementById('btnLove').addEventListener('click', () => swipe('right'));
     document.getElementById('btnSuper').addEventListener('click', () => swipe('super'));
 
-    loadDeck();
+    async function loadStatus() {
+      if (!sessionOk()) return;
+      try {
+        const u = unsafeUser ? `&unsafeUser=${encodeURIComponent(JSON.stringify(unsafeUser))}` : '';
+        const r = resumeToken ? `&resume=${encodeURIComponent(resumeToken)}` : '';
+        const res = await fetch(`/api/connect/status?initData=${encodeURIComponent(initData)}${u}${r}`);
+        const data = await res.json();
+        for (const s of data.connectedSources || []) setStatus(s.id, '✓', true);
+        if (data.location?.city) setStatus('location', data.location.city, true);
+        if (!data.googleConfigured) {
+          showFeedback('Almost there — paste your Google Client Secret into .env and add the redirect URI in Cloud Console (see chat).', true);
+        }
+      } catch (_) {}
+    }
+
+    (async () => {
+      restoreSession();
+      if (handleReturnParams()) {
+        await waitForTelegram();
+        const ok = sessionOk();
+        showSessionBanner(ok);
+        if (ok) loadStatus();
+        return;
+      }
+      const ok = await waitForTelegram();
+      showSessionBanner(ok);
+      loadDeck();
+      if (ok) loadStatus();
+    })();
   </script>
 </body>
 </html>

@@ -16,7 +16,16 @@ export function getOpenAIKey(): string {
 
 /** Default model for skills. Override with OPENAI_MODEL in .env. */
 export function getOpenAIModel(): string {
-  return process.env.OPENAI_MODEL?.trim() || "gpt-5.6-terra";
+  return process.env.OPENAI_MODEL?.trim() || "gpt-5.6-sol";
+}
+
+/** Richer model for onboarding recaps and in-app copy. */
+export function getOnboardingModel(): string {
+  return (
+    process.env.OPENAI_ONBOARDING_MODEL?.trim() ||
+    process.env.OPENAI_MODEL?.trim() ||
+    "gpt-5.6-sol"
+  );
 }
 
 export function getTelegramBotToken(): string {
@@ -31,4 +40,16 @@ export function getWebAppUrl(): string {
 
 export function getServerPort(): number {
   return Number(process.env.PORT ?? "8787");
+}
+
+export function getTelegramAllowUnsafeUser(): boolean {
+  return process.env.TELEGRAM_ALLOW_UNSAFE_USER === "true";
+}
+
+export function isGoogleConfigured(): boolean {
+  return !!(
+    process.env.GOOGLE_CLIENT_ID?.trim() &&
+    process.env.GOOGLE_CLIENT_SECRET?.trim() &&
+    process.env.WEBAPP_URL?.trim()
+  );
 }
