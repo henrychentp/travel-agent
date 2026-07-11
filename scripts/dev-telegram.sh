@@ -29,13 +29,13 @@ if command -v ngrok >/dev/null && ngrok config check >/dev/null 2>&1; then
 elif command -v ngrok >/dev/null; then
   echo "ngrok found but not authenticated — using Cloudflare tunnel."
   echo "For ngrok: ngrok config add-authtoken <token>"
-  npx --yes cloudflared tunnel --url "http://localhost:$PORT" 2>&1 | tee /tmp/cloudflared.log &
+  npx --yes cloudflared tunnel --url "http://127.0.0.1:$PORT" 2>&1 | tee /tmp/cloudflared.log &
   TUNNEL_PID=$!
   sleep 5
   URL=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' /tmp/cloudflared.log | head -1)
 else
   echo "Starting Cloudflare quick tunnel…"
-  npx --yes cloudflared tunnel --url "http://localhost:$PORT" 2>&1 | tee /tmp/cloudflared.log &
+  npx --yes cloudflared tunnel --url "http://127.0.0.1:$PORT" 2>&1 | tee /tmp/cloudflared.log &
   TUNNEL_PID=$!
   sleep 5
   URL=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' /tmp/cloudflared.log | head -1)

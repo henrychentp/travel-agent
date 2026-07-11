@@ -315,6 +315,12 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", `http://localhost`);
 
   try {
+    if (req.method === "GET" && url.pathname === "/api/health") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true, webAppUrl: getWebAppUrl() }));
+      return;
+    }
+
     if (req.method === "GET" && url.pathname === "/api/onboarding/deck") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ cards: SWIPE_DECK, rounds: SWIPE_ROUNDS }));
