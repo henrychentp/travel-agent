@@ -77,6 +77,11 @@ export function getTelegramAllowUnsafeUser(): boolean {
   return process.env.TELEGRAM_ALLOW_UNSAFE_USER === "true";
 }
 
+/** True when hosted Mem0 is configured (otherwise the in-memory stub is used). */
+export function isMem0Configured(): boolean {
+  return Boolean(process.env.MEM0_API_KEY?.trim());
+}
+
 export function isGoogleConfigured(): boolean {
   try {
     return !!(

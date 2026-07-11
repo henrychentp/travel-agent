@@ -7,6 +7,22 @@ memory live:
 Set `LINKUP_API_KEY` and `MEM0_API_KEY` in that local file. The committed
 [`.env.example`](../.env.example) lists the variable names with blank values.
 
+### Mem0 setup (teammate handoff)
+
+1. Get the shared `MEM0_API_KEY` from the team secret store (never commit it).
+2. Local: `cp .env.example .env` and set `MEM0_API_KEY=...`.
+3. Deploy: add `MEM0_API_KEY` as a platform secret (Render dashboard, Vercel
+   env vars, or Railway variables). `render.yaml` already declares the slot.
+4. Verify: `npm run build && node --env-file=.env -e "
+   import { createMem0Client } from './dist/src/shared/mem0-client.js';
+   const m = createMem0Client();
+   await m.saveProfile({ userId: 'smoke-test', version: 1, notes: [], evidence: [], categories: {} });
+   console.log('Mem0 OK:', (await m.getProfile('smoke-test'))?.userId);
+   "`
+
+When the key is set, onboarding, swipe, Google import, planner, and concierge
+all read/write durable taste via `createMem0Client()` — no code changes needed.
+
 Set `HERMES_LIVE_CULTURE=true` alongside an `OPENAI_API_KEY` to use the
 OpenAI-backed Culture Concierge. It uses the existing shared OpenAI client and
 is deliberately opt-in, so deterministic tests never call a model API.

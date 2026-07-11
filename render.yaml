@@ -21,3 +21,5 @@ services:
         sync: false
       - key: GOOGLE_CLIENT_SECRET
         sync: false
+      - key: MEM0_API_KEY
+        sync: false
