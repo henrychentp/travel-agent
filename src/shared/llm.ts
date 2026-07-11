@@ -22,17 +22,21 @@ export async function chat(
   const apiKey = getOpenAIKey();
   const model = options.model ?? getOpenAIModel();
 
+  const body: Record<string, unknown> = {
+    model,
+    messages,
+  };
+  if (options.temperature !== undefined) {
+    body.temperature = options.temperature;
+  }
+
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: options.temperature ?? 0.4,
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
