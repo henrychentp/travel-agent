@@ -267,11 +267,11 @@ async function handleConcierge(chatId: number, userId: string, text: string) {
 
 async function handleWebAppData(chatId: number, userId: string, data: string) {
   try {
-    const payload = JSON.parse(data) as { type?: string; swipes?: SwipeInput[]; city?: string; startDate?: string; endDate?: string; travellers?: number };
+    const payload = JSON.parse(data) as { type?: string; swipes?: SwipeInput[]; city?: string; location?: string; startDate?: string; endDate?: string; travellers?: number };
     if (payload.swipes?.length) await onboardFromSwipes(userId, payload.swipes, { mem0 });
     if (payload.type === "onboarding-complete") await runOnboardingDemo(chatId, userId);
     if (payload.type === "trip-context" && payload.city && payload.startDate && payload.endDate) {
-      await mem0.remember(userId, `trip-context:${JSON.stringify({ city: payload.city, startDate: payload.startDate, endDate: payload.endDate, travellers: payload.travellers ?? 1 })}`);
+      await mem0.remember(userId, `trip-context:${JSON.stringify({ city: payload.city, location: payload.location ?? payload.city, startDate: payload.startDate, endDate: payload.endDate, travellers: payload.travellers ?? 1 })}`);
       await runOnboardingDemo(chatId, userId);
     }
   } catch {

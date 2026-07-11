@@ -959,9 +959,7 @@
         closeBtn.style.display = 'block';
         setTimeout(() => showScreen('trip'), 650);
         if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-        if (tg?.sendData) {
-          tg.sendData(JSON.stringify({ type: 'onboarding-complete', swipes }));
-        }
+        // Trip context is collected next; send one complete handoff then.
       } catch (e) {
         st.textContent = e.message || 'Could not save. Try again.';
         retryBtn.style.display = 'block';
@@ -977,7 +975,7 @@
     document.getElementById('saveTripBtn').addEventListener('click', () => {
       const city = document.getElementById('tripCity').value.trim(); const start = document.getElementById('tripStart').value; const end = document.getElementById('tripEnd').value; const travellers = document.getElementById('tripTravellers').value;
       if (!city || !start || !end || end < start) { toast('Add a destination and valid travel dates.'); return; }
-      if (tg?.sendData) tg.sendData(JSON.stringify({ type: 'trip-context', city, startDate: start, endDate: end, travellers: Number(travellers) }));
+      if (tg?.sendData) tg.sendData(JSON.stringify({ type: 'trip-context', swipes, city, location: selectedCityValue() || city, startDate: start, endDate: end, travellers: Number(travellers) }));
       toast('Trip context saved — return to Hermes chat to plan it.');
     });
 
