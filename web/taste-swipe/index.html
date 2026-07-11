@@ -960,7 +960,7 @@
         setTimeout(() => showScreen('trip'), 650);
         if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
         if (tg?.sendData) {
-          tg.sendData(JSON.stringify({ type: 'onboarding-complete' }));
+          tg.sendData(JSON.stringify({ type: 'onboarding-complete', swipes }));
         }
       } catch (e) {
         st.textContent = e.message || 'Could not save. Try again.';
