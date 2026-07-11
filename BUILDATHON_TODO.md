@@ -31,6 +31,25 @@ two-minute causal story.
 - **Shritesh99 / Person B — Live-data workers:** Scout/Logistics/Culture integrations,
   external APIs, candidate freshness, and provider reliability.
 
+## Henry / Person A — remaining work split into four pieces
+
+These are the only remaining code tasks Henry should touch. They deliberately
+exclude Jerry's onboarding/profile work, Shritesh's live-worker/API work, and
+real-user/account actions.
+
+1. [ ] **Board trip-start handoff:** finish and verify the Board → one-time
+       Telegram link → existing Director flow, including a clear invalid-link
+       path. Do not alter onboarding questions or profile extraction.
+2. [ ] **Run controls:** add safe pause/retry controls and immutable trace
+       events, with deterministic tests. Keep run management in the Director
+       layer; do not change specialist data fetching.
+3. [ ] **Recovery-flow hardening:** make the narrow disruption → feasible
+       recovery plan → approval → version/rollback story explicit in core
+       tests and Board evidence. No external provider integration.
+4. [x] **Release proof:** run full tests, deploy Person A's Convex/Cloudflare
+       changes after credentials are available, keep the operator walkthrough
+       current, and record reproducible local verification commands.
+
 ## P0 — Eligibility and scope
 
 - [ ] Confirm the registered track is **AI as Agency**.
