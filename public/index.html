@@ -395,46 +395,30 @@
         </div>
       </div>
 
-      <div class="connect-card">
-        <div class="row-item">
-          <div class="row-icon" style="font-weight:700;font-size:0.85rem">N</div>
-          <div class="row-body">
-            <div class="row-name">Notion travel notes</div>
-            <div class="row-desc">Paste or upload your trip research</div>
-          </div>
-          <span class="row-status" id="status-notion"> </span>
-        </div>
-        <button class="btn btn-outline btn-block" id="toggleNotion">Import from Notion</button>
-        <div class="expand-panel" id="panel-notion">
-          <textarea id="notionText" placeholder="Barcelona favourites, dietary notes, must-sees…"></textarea>
-          <div class="file-row">or upload .md<input type="file" id="notionFile" accept=".md,.txt,.markdown" /></div>
-          <button class="btn btn-dark btn-block" id="btnNotionImport">Add to profile</button>
-        </div>
-      </div>
-
-      <div class="connect-card">
-        <div class="row-item">
-          <div class="row-icon" style="font-weight:700;font-size:0.85rem">◈</div>
-          <div class="row-body">
-            <div class="row-name">Obsidian vault</div>
-            <div class="row-desc">Your personal travel knowledge base</div>
-          </div>
-          <span class="row-status" id="status-obsidian"> </span>
-        </div>
-        <button class="btn btn-outline btn-block" id="toggleObsidian">Import from Obsidian</button>
-        <div class="expand-panel" id="panel-obsidian">
-          <textarea id="obsidianText" placeholder="Paste markdown from your vault…"></textarea>
-          <div class="file-row">or upload .md<input type="file" id="obsidianFile" accept=".md,.txt,.markdown" /></div>
-          <button class="btn btn-dark btn-block" id="btnObsidianImport">Add to profile</button>
-        </div>
-      </div>
     </div>
 
     <div class="footer-cta">
       <div id="inlineFeedback" class="inline-feedback"></div>
-      <button class="btn btn-dark btn-block" id="continueBtn">Next — taste swipes →</button>
+      <button class="btn btn-dark btn-block" id="continueBtn">Next — plan your trip →</button>
       <button class="link-skip" id="skipConnectBtn">Skip, I'll connect later</button>
     </div>
+  </div>
+
+  <div id="trip" class="screen centered">
+    <div class="mark">🗓️</div>
+    <h1>Plan this trip</h1>
+    <p>Tell us where and when — then we'll learn your taste with a quick swipe deck.</p>
+    <div style="width:100%;max-width:280px;margin-top:1rem;display:grid;gap:.6rem;text-align:left">
+      <label style="font-size:0.75rem;font-weight:600;color:var(--muted)">Destination</label>
+      <input id="tripCity" class="field-input" placeholder="Destination city" />
+      <label style="font-size:0.75rem;font-weight:600;color:var(--muted)">Start date</label>
+      <input id="tripStart" class="field-input" type="date" />
+      <label style="font-size:0.75rem;font-weight:600;color:var(--muted)">End date</label>
+      <input id="tripEnd" class="field-input" type="date" />
+      <label style="font-size:0.75rem;font-weight:600;color:var(--muted)">Travellers</label>
+      <input id="tripTravellers" class="field-input" type="number" min="1" value="1" />
+    </div>
+    <button class="btn btn-dark btn-block" id="saveTripBtn">Continue to taste swipes →</button>
   </div>
 
   <!-- Swipe intro -->
@@ -467,7 +451,7 @@
     <p id="doneStatus" style="max-width:280px">Stamping your taste passport…</p>
     <div id="savedBox" class="saved-chips" style="display:none"></div>
     <div id="recapBox" class="recap-box" style="display:none"></div>
-    <button class="btn btn-dark btn-block" id="closeBtn" style="display:none;margin-top:1.25rem;max-width:280px">Back to Hermes chat</button>
+    <button class="btn btn-ghost btn-block" id="closeBtn" style="display:none;margin-top:0.5rem;max-width:280px">Back to Hermes chat</button>
     <button class="btn btn-ghost btn-block" id="retryBtn" style="display:none;margin-top:0.5rem;max-width:280px">Try saving again</button>
   </div>
 
@@ -788,56 +772,27 @@
       );
     });
 
-    // Notion / Obsidian
-    document.getElementById('toggleNotion').addEventListener('click', () => {
-      document.getElementById('panel-notion').classList.toggle('open');
-    });
-    document.getElementById('toggleObsidian').addEventListener('click', () => {
-      document.getElementById('panel-obsidian').classList.toggle('open');
-    });
-
-    async function importPaste(source, text) {
-      if (!sessionOk()) { showSessionBanner(false); return; }
-      if (!text?.trim()) { showFeedback('Paste notes or choose a .md file first.', true); return; }
-      const btnId = source === 'notion' ? 'btnNotionImport' : 'btnObsidianImport';
-      setLoading(btnId, true);
-      try {
-        const data = await apiPost('/api/connect/paste', { source, text: text.trim() });
-        setStatus(source, '✓', true);
-        showFeedback(data.message || `${source} imported.`);
-        if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-      } catch (e) {
-        showFeedback(e.message, true);
-      } finally { setLoading(btnId, false); }
+    function showTripScreen() {
+      const city = document.getElementById('citySearch').value.trim() || lastSavedCity;
+      if (city) document.getElementById('tripCity').value = city;
+      const today = new Date().toISOString().slice(0, 10);
+      if (!document.getElementById('tripStart').value) document.getElementById('tripStart').value = today;
+      if (!document.getElementById('tripEnd').value) {
+        const end = new Date();
+        end.setDate(end.getDate() + 3);
+        document.getElementById('tripEnd').value = end.toISOString().slice(0, 10);
+      }
+      showScreen('trip');
     }
-
-    document.getElementById('btnNotionImport').addEventListener('click', () => {
-      importPaste('notion', document.getElementById('notionText').value);
-    });
-    document.getElementById('btnObsidianImport').addEventListener('click', () => {
-      importPaste('obsidian', document.getElementById('obsidianText').value);
-    });
-
-    function bindFile(fileId, textId) {
-      document.getElementById(fileId).addEventListener('change', (e) => {
-        const f = e.target.files?.[0];
-        if (!f) return;
-        const r = new FileReader();
-        r.onload = () => { document.getElementById(textId).value = r.result; toast('File loaded'); };
-        r.readAsText(f);
-      });
-    }
-    bindFile('notionFile', 'notionText');
-    bindFile('obsidianFile', 'obsidianText');
 
     // Nav
     document.getElementById('continueBtn').addEventListener('click', async () => {
       if (!(await requireSession())) return;
-      showScreen('intro');
+      showTripScreen();
     });
     document.getElementById('skipConnectBtn').addEventListener('click', async () => {
       if (!(await requireSession())) return;
-      showScreen('intro');
+      showTripScreen();
     });
     document.getElementById('startBtn').addEventListener('click', async () => {
       if (!(await requireSession())) return;
@@ -958,6 +913,27 @@
 
     document.getElementById('closeBtn').addEventListener('click', () => {
       if (tg) tg.close();
+    });
+    document.getElementById('saveTripBtn').addEventListener('click', async () => {
+      if (!(await requireSession())) return;
+      const city = document.getElementById('tripCity').value.trim();
+      const start = document.getElementById('tripStart').value;
+      const end = document.getElementById('tripEnd').value;
+      const travellers = document.getElementById('tripTravellers').value;
+      if (!city || !start || !end || end < start) {
+        toast('Add a destination and valid travel dates.');
+        return;
+      }
+      if (tg?.sendData) {
+        tg.sendData(JSON.stringify({
+          type: 'trip-context',
+          city,
+          startDate: start,
+          endDate: end,
+          travellers: Number(travellers),
+        }));
+      }
+      showScreen('intro');
     });
 
     document.getElementById('btnPass').addEventListener('click', () => swipe('left'));
