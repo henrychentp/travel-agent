@@ -1,4 +1,7 @@
-import type { ISODate, UserId } from "../../shared/schemas.js";
+import type { Mem0Client } from "../../shared/mem0-client.js";
+import { createMem0Client } from "../../shared/mem0-client.js";
+import type { GoogleOAuthTokens, UserId } from "../../shared/schemas.js";
+import { emptyProfile } from "../../shared/schemas.js";
 import {
   getCanonicalProductionUrl,
   getGoogleOAuthBlockReason,
@@ -6,7 +9,8 @@ import {
   resolvePublicBaseUrl,
 } from "../../shared/env.js";
 
-const tokenStore = new Map<UserId, { accessToken: string; refreshToken?: string; at: ISODate }>();
+/** Process-local cache — Mem0 is the durable store across serverless invocations. */
+const tokenCache = new Map<UserId, GoogleOAuthTokens>();
 
 export function getGoogleEnv(): {
   clientId: string;
@@ -129,36 +133,126 @@ export async function exchangeGoogleCode(
   return { accessToken: data.access_token, refreshToken: data.refresh_token };
 }
 
-export function saveGoogleTokens(
-  userId: UserId,
-  accessToken: string,
-  refreshToken?: string,
-): void {
-  tokenStore.set(userId, {
-    accessToken,
-    refreshToken,
-    at: new Date().toISOString(),
+async function refreshGoogleAccessToken(
+  refreshToken: string,
+): Promise<{ accessToken: string; refreshToken?: string }> {
+  const env = getGoogleEnv();
+  if (!env) throw new Error("Google OAuth not configured");
+
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: env.clientId,
+      client_secret: env.clientSecret,
+      refresh_token: refreshToken,
+      grant_type: "refresh_token",
+    }),
   });
+
+  const body = await res.text();
+  if (!res.ok) {
+    throw new Error(`Google token refresh failed (${res.status})`);
+  }
+
+  const data = JSON.parse(body) as {
+    access_token: string;
+    refresh_token?: string;
+  };
+  return {
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token ?? refreshToken,
+  };
 }
 
-export async function fetchGoogleSignals(userId: UserId): Promise<{
+async function loadGoogleTokens(
+  userId: UserId,
+  mem0: Mem0Client,
+): Promise<GoogleOAuthTokens | null> {
+  const cached = tokenCache.get(userId);
+  if (cached) return cached;
+
+  const profile = await mem0.getProfile(userId);
+  if (profile?.googleOAuth?.accessToken) {
+    tokenCache.set(userId, profile.googleOAuth);
+    return profile.googleOAuth;
+  }
+  return null;
+}
+
+/** Persist Google OAuth tokens on the traveller profile in Mem0. */
+export async function saveGoogleTokens(
+  userId: UserId,
+  accessToken: string,
+  refreshToken: string | undefined,
+  mem0: Mem0Client = createMem0Client(),
+): Promise<void> {
+  const updatedAt = new Date().toISOString();
+  const tokens: GoogleOAuthTokens = {
+    accessToken,
+    refreshToken,
+    updatedAt,
+  };
+  tokenCache.set(userId, tokens);
+
+  const profile = (await mem0.getProfile(userId)) ?? emptyProfile(userId, updatedAt);
+  profile.googleOAuth = tokens;
+  profile.updatedAt = updatedAt;
+  await mem0.saveProfile(profile);
+}
+
+async function accessTokenForUser(
+  userId: UserId,
+  mem0: Mem0Client,
+): Promise<string | null> {
+  const tokens = await loadGoogleTokens(userId, mem0);
+  if (!tokens) return null;
+  return tokens.accessToken;
+}
+
+async function fetchWithGoogleAuth(
+  userId: UserId,
+  mem0: Mem0Client,
+  request: (accessToken: string) => Promise<Response>,
+): Promise<Response> {
+  const tokens = await loadGoogleTokens(userId, mem0);
+  if (!tokens) throw new Error("Google not connected for this user");
+
+  let response = await request(tokens.accessToken);
+  if (response.status !== 401 || !tokens.refreshToken) return response;
+
+  const refreshed = await refreshGoogleAccessToken(tokens.refreshToken);
+  await saveGoogleTokens(userId, refreshed.accessToken, refreshed.refreshToken, mem0);
+  return request(refreshed.accessToken);
+}
+
+export async function fetchGoogleSignals(
+  userId: UserId,
+  mem0: Mem0Client = createMem0Client(),
+): Promise<{
   emails: { subject: string; snippet?: string }[];
   calendar: { title: string; start?: string; location?: string }[];
 }> {
-  const tokens = tokenStore.get(userId);
-  if (!tokens) return { emails: [], calendar: [] };
+  const hasTokens = await accessTokenForUser(userId, mem0);
+  if (!hasTokens) return { emails: [], calendar: [] };
 
-  const headers = { Authorization: `Bearer ${tokens.accessToken}` };
+  const authFetch = (accessToken: string) => ({
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
 
   const [mailRes, calRes] = await Promise.all([
-    fetch(
-      "https://gmail.googleapis.com/gmail/v1/users/me/messages?q=flight+OR+hotel+OR+booking&maxResults=8",
-      { headers },
+    fetchWithGoogleAuth(userId, mem0, (accessToken) =>
+      fetch(
+        "https://gmail.googleapis.com/gmail/v1/users/me/messages?q=flight+OR+hotel+OR+booking&maxResults=8",
+        authFetch(accessToken),
+      ),
     ),
-    fetch(
-      "https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=10&orderBy=startTime&singleEvents=true&timeMin=" +
-        encodeURIComponent(new Date().toISOString()),
-      { headers },
+    fetchWithGoogleAuth(userId, mem0, (accessToken) =>
+      fetch(
+        "https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=10&orderBy=startTime&singleEvents=true&timeMin=" +
+          encodeURIComponent(new Date().toISOString()),
+        authFetch(accessToken),
+      ),
     ),
   ]);
 
@@ -172,10 +266,12 @@ export async function fetchGoogleSignals(userId: UserId): Promise<{
     const mail = (await mailRes.json()) as {
       messages?: { id: string }[];
     };
+    const accessToken = (await loadGoogleTokens(userId, mem0))!.accessToken;
+    const headers = authFetch(accessToken);
     for (const msg of mail.messages ?? []) {
       const detail = await fetch(
         `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=Snippet`,
-        { headers },
+        headers,
       );
       if (!detail.ok) continue;
       const d = (await detail.json()) as {
@@ -210,4 +306,13 @@ export async function fetchGoogleSignals(userId: UserId): Promise<{
   }
 
   return { emails, calendar };
+}
+
+/** Strip OAuth secrets before returning a profile to clients. */
+export function redactGoogleOAuth<T extends { googleOAuth?: GoogleOAuthTokens }>(
+  profile: T,
+): T {
+  if (!profile.googleOAuth) return profile;
+  const { googleOAuth: _removed, ...safe } = profile;
+  return safe as T;
 }

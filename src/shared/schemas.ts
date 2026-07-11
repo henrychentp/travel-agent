@@ -45,6 +45,13 @@ export interface ConnectedSource {
   scopes?: string[];
 }
 
+/** Durable Google OAuth tokens (stored on TravellerProfile in Mem0). */
+export interface GoogleOAuthTokens {
+  accessToken: string;
+  refreshToken?: string;
+  updatedAt: ISODate;
+}
+
 /** Where a piece of profile data came from. */
 export type ProvenanceSource = "stated" | "revealed" | "inferred";
 
@@ -306,6 +313,8 @@ export interface TravellerProfile {
   destinationCity?: string;
   /** Third-party connectors the traveller has linked. */
   connectedSources?: ConnectedSource[];
+  /** Google Gmail/Calendar OAuth tokens — server-side only; never send to LLM prompts. */
+  googleOAuth?: GoogleOAuthTokens;
 
   /** 0..1 confidence per category — how sure we are of this data. */
   confidence: Partial<Record<ProfileCategory, number>>;

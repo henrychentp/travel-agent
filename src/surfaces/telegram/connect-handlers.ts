@@ -15,6 +15,7 @@ import {
   getGoogleSetupInfo,
   googleAuthUrl,
   parseGoogleOAuthState,
+  redactGoogleOAuth,
   saveGoogleTokens,
 } from "../../skills/onboarding/google.js";
 import {
@@ -284,7 +285,7 @@ export async function handleMem0Profile(
       });
       return;
     }
-    json(res, 200, { ok: true, userId, profile });
+    json(res, 200, { ok: true, userId, profile: redactGoogleOAuth(profile) });
   } catch (err) {
     json(res, 502, {
       error: "Mem0 read failed",
@@ -425,9 +426,9 @@ export async function handleGoogleCallback(
 
   try {
     const tokens = await exchangeGoogleCode(code);
-    saveGoogleTokens(userId, tokens.accessToken, tokens.refreshToken);
+    await saveGoogleTokens(userId, tokens.accessToken, tokens.refreshToken, mem0);
 
-    const signals = await fetchGoogleSignals(userId);
+    const signals = await fetchGoogleSignals(userId, mem0);
     await applyImport(userId, { source: "google", data: signals }, { mem0 });
 
     const n = signals.emails.length + signals.calendar.length;

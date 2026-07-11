@@ -3,7 +3,11 @@ import assert from "node:assert/strict";
 import {
   getGoogleSetupInfo,
   googleAuthUrl,
+  redactGoogleOAuth,
+  saveGoogleTokens,
 } from "../../src/skills/onboarding/google.js";
+import { InMemoryMem0 } from "../../src/shared/mem0-client.js";
+import { emptyProfile } from "../../src/shared/schemas.js";
 
 test("googleAuthUrl includes redirect URI and traveller state", () => {
   const prev = {
@@ -96,4 +100,30 @@ test("google OAuth is blocked on Vercel preview deploys", () => {
   process.env.VERCEL_URL = prev.VERCEL_URL;
   process.env.VERCEL_PROJECT_PRODUCTION_URL = prev.VERCEL_PROJECT_PRODUCTION_URL;
   process.env.HERMES_ALLOW_GOOGLE_OAUTH = prev.HERMES_ALLOW_GOOGLE_OAUTH;
+});
+
+test("saveGoogleTokens persists OAuth tokens to Mem0 profile", async () => {
+  const mem0 = new InMemoryMem0();
+  const userId = "tg:42" as const;
+  await mem0.saveProfile(emptyProfile(userId, "2026-07-11T00:00:00.000Z"));
+
+  await saveGoogleTokens(userId, "access-abc", "refresh-xyz", mem0);
+
+  const profile = await mem0.getProfile(userId);
+  assert.equal(profile?.googleOAuth?.accessToken, "access-abc");
+  assert.equal(profile?.googleOAuth?.refreshToken, "refresh-xyz");
+  assert.ok(profile?.googleOAuth?.updatedAt);
+});
+
+test("redactGoogleOAuth strips tokens from profile responses", () => {
+  const profile = emptyProfile("tg:1", "2026-07-11T00:00:00.000Z");
+  profile.googleOAuth = {
+    accessToken: "secret-access",
+    refreshToken: "secret-refresh",
+    updatedAt: "2026-07-11T00:00:00.000Z",
+  };
+
+  const safe = redactGoogleOAuth(profile);
+  assert.equal("googleOAuth" in safe, false);
+  assert.equal(safe.userId, "tg:1");
 });
