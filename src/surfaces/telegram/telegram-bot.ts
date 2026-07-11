@@ -2,6 +2,10 @@ import { chat } from "../../shared/llm.js";
 import { getTelegramBotToken, getWebAppUrl } from "../../shared/env.js";
 import { createMem0Client } from "../../shared/mem0-client.js";
 import {
+  hasTasteProfile,
+  profilePromptContext,
+} from "../../shared/profile-prompt.js";
+import {
   onboardFromSwipes,
   type SwipeInput,
 } from "../../skills/onboarding/swipe.js";
@@ -127,23 +131,38 @@ export async function syncTelegramMenuButton(): Promise<void> {
   });
 }
 
-async function handleStart(chatId: number, firstName: string) {
+async function handleStart(chatId: number, firstName: string, userId: string) {
+  const profile = await mem0.getProfile(userId);
+  const saved = hasTasteProfile(profile);
+  const locationLine = profile?.location?.city
+    ? `\n\nI already have you in *${profile.location.city}*`
+    : "";
+  const connected =
+    profile?.connectedSources?.filter((s) => s.status === "connected").map((s) => s.id) ?? [];
+  const connectedLine = connected.length
+    ? ` with ${connected.join(", ")} connected.`
+    : saved
+      ? " with your taste on file."
+      : ".";
+
   await sendMessage(
     chatId,
     `Welcome to *Hermes*, ${firstName}.\n\n` +
       `I suggest what to do when you land somewhere new with a few hours free — ` +
-      `based on *your* taste, calendar, and location.\n\n` +
-      `Tap *🎯 Build taste profile* to connect Google, share your location, then swipe your preferences.`,
+      `based on *your* taste, calendar, and location.${saved ? locationLine + connectedLine : ""}\n\n` +
+      (saved
+        ? `Tell me where you are and how much time you have, or tap below to refresh your profile.`
+        : `Tap *🎯 Build taste profile* to connect Google, share your location, then swipe your preferences.`),
     { reply_markup: webAppKeyboard() },
   );
 }
 
-async function handleFreeTime(chatId: number, userId: string, text: string) {
+async function handleConcierge(chatId: number, userId: string, text: string) {
   const profile = await mem0.getProfile(userId);
-  if (!profile || Object.keys(profile.confidence).length < 3) {
+  if (!hasTasteProfile(profile)) {
     await sendMessage(
       chatId,
-      `I'd love to suggest something — but I don't know your taste yet.\n\nTap *🎯 Build taste profile* first (2 min swipe), then come back and tell me where you are.`,
+      `I'd love to suggest something — but I don't know your taste yet.\n\nTap *🎯 Build taste profile* first (connect Google, share location, swipe — ~2 min), then come back and tell me where you are.`,
       { reply_markup: webAppKeyboard() },
     );
     return;
@@ -152,11 +171,13 @@ async function handleFreeTime(chatId: number, userId: string, text: string) {
   const reply = await chat([
     {
       role: "system",
-      content: `You are Hermes, a premium day-travel concierge. Suggest 2-3 specific things for a traveller with a few free hours. Use their taste profile and current location if known. Be concrete (neighbourhoods, food, vibe). Keep it Telegram-friendly.`,
+      content:
+        `You are Hermes, a premium day-travel concierge. The traveller's durable taste profile is loaded from Mem0 — use it for every suggestion. ` +
+        `Suggest 2-3 specific things for their free hours. Be concrete (neighbourhoods, food, vibe). Keep it Telegram-friendly.`,
     },
     {
       role: "user",
-      content: `Request: "${text}"\nLocation: ${profile.location?.city ?? "unknown"}\nProfile: ${JSON.stringify({ pace: profile.pace, food: profile.food, activities: profile.activities, comfortRisk: profile.comfortRisk, dealBreakers: profile.dealBreakers, notes: profile.notes, connectedSources: profile.connectedSources })}`,
+      content: `Request: "${text}"\nMem0 profile: ${profilePromptContext(profile!)}`,
     },
   ]);
 
@@ -164,10 +185,9 @@ async function handleFreeTime(chatId: number, userId: string, text: string) {
   await sendFreeTimeAssets(chatId, reply);
 }
 
-async function handleWebAppData(chatId: number, data: string) {
+async function handleWebAppData(userId: string, data: string) {
   try {
     const { swipes } = JSON.parse(data) as { swipes: SwipeInput[] };
-    const userId = `tg:${chatId}`;
     await onboardFromSwipes(userId, swipes, { mem0 });
   } catch {
     /* recap shown in mini app */
@@ -185,24 +205,19 @@ export async function processTelegramUpdate(update: Record<string, unknown>) {
 
   if (msg.web_app_data) {
     const data = (msg.web_app_data as { data: string }).data;
-    await handleWebAppData(chatId, data);
+    await handleWebAppData(userId, data);
     return;
   }
 
   const text = (msg.text as string) ?? "";
 
   if (text.startsWith("/start")) {
-    await handleStart(chatId, from.first_name);
+    await handleStart(chatId, from.first_name, userId);
     return;
   }
 
-  if (
-    text.includes("free time") ||
-    text.includes("hours") ||
-    text.includes("what should I do") ||
-    text.includes("suggest")
-  ) {
-    await handleFreeTime(chatId, userId, text);
+  if (text.trim()) {
+    await handleConcierge(chatId, userId, text);
     return;
   }
 
